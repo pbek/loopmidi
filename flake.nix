@@ -7,7 +7,11 @@
   };
 
   outputs =
-    { nixpkgs, flake-utils }:
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -63,9 +67,9 @@
           inherit loopmidi;
         };
 
-        apps.default = flake-utils.lib.mkApp {
-          drv = loopmidi;
-          name = "loopmidi";
+        apps.default = {
+          type = "app";
+          program = "${self.packages.${system}.loopmidi}/bin/loopmidi";
         };
 
         devShells.default = pkgs.mkShell {
