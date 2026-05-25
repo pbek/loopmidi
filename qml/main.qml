@@ -16,27 +16,31 @@ Window {
 
     MidiEngine {
         id: engine
-        onErrorOccurred: (msg) => errorBanner.show(msg)
+        onErrorOccurred: msg => errorBanner.show(msg)
         onNoteReceived: (note, vel, ch) => noteViz.flash(note, vel)
     }
 
     // ── Fonts / palette ─────────────────────────────────────────────────────
-    readonly property color accent:      "#7c3aed"
+    readonly property color accent: "#7c3aed"
     readonly property color accentLight: "#a78bfa"
-    readonly property color recColor:    "#ef4444"
-    readonly property color playColor:   "#22c55e"
-    readonly property color stepActive:  "#7c3aed"
-    readonly property color stepEmpty:   "#1e1e2e"
-    readonly property color stepBorder:  "#2d2d3d"
+    readonly property color recColor: "#ef4444"
+    readonly property color playColor: "#22c55e"
+    readonly property color stepActive: "#7c3aed"
+    readonly property color stepEmpty: "#1e1e2e"
+    readonly property color stepBorder: "#2d2d3d"
     readonly property color textPrimary: "#f1f5f9"
-    readonly property color textMuted:   "#64748b"
-    readonly property color panelBg:     "#13131f"
-    readonly property color cardBg:      "#1a1a2e"
+    readonly property color textMuted: "#64748b"
+    readonly property color panelBg: "#13131f"
+    readonly property color cardBg: "#1a1a2e"
 
     // ── Error banner ────────────────────────────────────────────────────────
     Rectangle {
         id: errorBannerRect
-        anchors { left: parent.left; right: parent.right; top: parent.top }
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+        }
         height: 0
         color: "#7f1d1d"
         clip: true
@@ -49,7 +53,11 @@ Window {
             font.pixelSize: 13
         }
 
-        Behavior on height { NumberAnimation { duration: 200 } }
+        Behavior on height {
+            NumberAnimation {
+                duration: 200
+            }
+        }
 
         Timer {
             id: errorHideTimer
@@ -58,16 +66,24 @@ Window {
         }
 
         function show(msg) {
-            errorText.text = msg
-            height = 36
-            errorHideTimer.restart()
+            errorText.text = msg;
+            height = 36;
+            errorHideTimer.restart();
         }
     }
-    QtObject { id: errorBanner; function show(m) { errorBannerRect.show(m) } }
+    QtObject {
+        id: errorBanner
+        function show(m) {
+            errorBannerRect.show(m);
+        }
+    }
 
     // ── Main layout ─────────────────────────────────────────────────────────
     ColumnLayout {
-        anchors { fill: parent; margins: 0 }
+        anchors {
+            fill: parent
+            margins: 0
+        }
         spacing: 0
 
         // Header
@@ -75,22 +91,36 @@ Window {
             Layout.fillWidth: true
             height: 56
             color: "#0d0d12"
-            border { color: "#1e1e2e"; width: 1 }
+            border {
+                color: "#1e1e2e"
+                width: 1
+            }
 
             RowLayout {
-                anchors { fill: parent; leftMargin: 20; rightMargin: 20 }
+                anchors {
+                    fill: parent
+                    leftMargin: 20
+                    rightMargin: 20
+                }
                 spacing: 12
 
                 // Logo / name
                 Row {
                     spacing: 10
                     Rectangle {
-                        width: 32; height: 32
+                        width: 32
+                        height: 32
                         radius: 8
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
-                            GradientStop { position: 0; color: "#7c3aed" }
-                            GradientStop { position: 1; color: "#6d28d9" }
+                            GradientStop {
+                                position: 0
+                                color: "#7c3aed"
+                            }
+                            GradientStop {
+                                position: 1
+                                color: "#6d28d9"
+                            }
                         }
                         Text {
                             anchors.centerIn: parent
@@ -102,16 +132,35 @@ Window {
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 0
-                        Text { text: "LoopMidi"; font.pixelSize: 18; font.bold: true; color: root.textPrimary }
-                        Text { text: "MIDI Loop Sequencer"; font.pixelSize: 10; color: root.textMuted }
+                        Text {
+                            text: "LoopMidi"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: root.textPrimary
+                        }
+                        Text {
+                            text: "MIDI Loop Sequencer"
+                            font.pixelSize: 10
+                            color: root.textMuted
+                        }
                     }
                 }
 
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 // Status pills
-                StatusPill { label: "REC"; active: engine.recording; activeColor: root.recColor }
-                StatusPill { label: "PLAY"; active: engine.playing; activeColor: root.playColor }
+                StatusPill {
+                    label: "REC"
+                    active: engine.recording
+                    activeColor: root.recColor
+                }
+                StatusPill {
+                    label: "PLAY"
+                    active: engine.playing
+                    activeColor: root.playColor
+                }
                 StatusPill {
                     label: "THRU"
                     active: engine.passthroughEnabled
@@ -133,19 +182,31 @@ Window {
                 Layout.fillHeight: true
                 width: 220
                 color: root.panelBg
-                border { color: "#1e1e2e"; width: 1 }
+                border {
+                    color: "#1e1e2e"
+                    width: 1
+                }
 
                 ColumnLayout {
-                    anchors { fill: parent; margins: 16 }
+                    anchors {
+                        fill: parent
+                        margins: 16
+                    }
                     spacing: 16
 
-                    SectionLabel { labelText: "MIDI PORTS" }
+                    SectionLabel {
+                        labelText: "MIDI PORTS"
+                    }
 
                     // Input port
                     Column {
                         Layout.fillWidth: true
                         spacing: 6
-                        Text { text: "Input"; color: root.textMuted; font.pixelSize: 11 }
+                        Text {
+                            text: "Input"
+                            color: root.textMuted
+                            font.pixelSize: 11
+                        }
                         ComboBox {
                             id: inputPortCombo
                             width: parent.width
@@ -155,10 +216,10 @@ Window {
                             Connections {
                                 target: engine
                                 function onSelectedInputPortChanged() {
-                                    inputPortCombo.currentIndex = engine.selectedInputPort
+                                    inputPortCombo.currentIndex = engine.selectedInputPort;
                                 }
                                 function onPortsChanged() {
-                                    inputPortCombo.currentIndex = engine.selectedInputPort
+                                    inputPortCombo.currentIndex = engine.selectedInputPort;
                                 }
                             }
                             background: Rectangle {
@@ -175,7 +236,7 @@ Window {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             delegate: ItemDelegate {
-                                width: parent.width
+                                width: ListView.view ? ListView.view.width : implicitWidth
                                 contentItem: Text {
                                     text: modelData
                                     color: root.textPrimary
@@ -199,7 +260,11 @@ Window {
                     Column {
                         Layout.fillWidth: true
                         spacing: 6
-                        Text { text: "Output (hardware)"; color: root.textMuted; font.pixelSize: 11 }
+                        Text {
+                            text: "Output (hardware)"
+                            color: root.textMuted
+                            font.pixelSize: 11
+                        }
                         ComboBox {
                             id: outputPortCombo
                             width: parent.width
@@ -209,13 +274,17 @@ Window {
                             Connections {
                                 target: engine
                                 function onSelectedOutputPortChanged() {
-                                    outputPortCombo.currentIndex = engine.selectedOutputPort
+                                    outputPortCombo.currentIndex = engine.selectedOutputPort;
                                 }
                                 function onPortsChanged() {
-                                    outputPortCombo.currentIndex = engine.selectedOutputPort
+                                    outputPortCombo.currentIndex = engine.selectedOutputPort;
                                 }
                             }
-                            background: Rectangle { color: root.cardBg; border.color: root.stepBorder; radius: 6 }
+                            background: Rectangle {
+                                color: root.cardBg
+                                border.color: root.stepBorder
+                                radius: 6
+                            }
                             contentItem: Text {
                                 leftPadding: 10
                                 text: parent.displayText
@@ -225,11 +294,23 @@ Window {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             delegate: ItemDelegate {
-                                width: parent.width
-                                contentItem: Text { text: modelData; color: root.textPrimary; font.pixelSize: 12; elide: Text.ElideRight }
-                                background: Rectangle { color: hovered ? root.accent : root.cardBg; radius: 4 }
+                                width: ListView.view ? ListView.view.width : implicitWidth
+                                contentItem: Text {
+                                    text: modelData
+                                    color: root.textPrimary
+                                    font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                }
+                                background: Rectangle {
+                                    color: hovered ? root.accent : root.cardBg
+                                    radius: 4
+                                }
                             }
-                            popup.background: Rectangle { color: root.cardBg; border.color: root.stepBorder; radius: 6 }
+                            popup.background: Rectangle {
+                                color: root.cardBg
+                                border.color: root.stepBorder
+                                radius: 6
+                            }
                         }
                     }
 
@@ -240,8 +321,14 @@ Window {
                         onClicked: engine.refreshPorts()
                     }
 
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.stepBorder }
-                    SectionLabel { labelText: "TRANSPORT" }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: root.stepBorder
+                    }
+                    SectionLabel {
+                        labelText: "TRANSPORT"
+                    }
 
                     // BPM
                     Column {
@@ -249,8 +336,16 @@ Window {
                         spacing: 6
                         Row {
                             spacing: 4
-                            Text { text: "BPM"; color: root.textMuted; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
-                            Item { width: 1; height: 1 }
+                            Text {
+                                text: "BPM"
+                                color: root.textMuted
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item {
+                                width: 1
+                                height: 1
+                            }
                             Text {
                                 text: Math.round(engine.bpm)
                                 color: root.accentLight
@@ -262,29 +357,37 @@ Window {
                         Slider {
                             id: bpmSlider
                             width: parent.width
-                            from: 40; to: 240
+                            from: 40
+                            to: 240
                             value: engine.bpm
                             onMoved: engine.bpm = value
                             Connections {
                                 target: engine
                                 function onBpmChanged() {
                                     if (!bpmSlider.pressed)
-                                        bpmSlider.value = engine.bpm
+                                        bpmSlider.value = engine.bpm;
                                 }
                             }
                             background: Rectangle {
-                                x: parent.leftPadding; y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                                width: parent.availableWidth; height: 4; radius: 2
+                                x: parent.leftPadding
+                                y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                width: parent.availableWidth
+                                height: 4
+                                radius: 2
                                 color: root.stepBorder
                                 Rectangle {
                                     width: parent.parent.visualPosition * parent.width
-                                    height: parent.height; radius: 2; color: root.accent
+                                    height: parent.height
+                                    radius: 2
+                                    color: root.accent
                                 }
                             }
                             handle: Rectangle {
                                 x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
                                 y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                                width: 14; height: 14; radius: 7
+                                width: 14
+                                height: 14
+                                radius: 7
                                 color: root.accentLight
                                 border.color: root.accent
                                 border.width: 2
@@ -292,15 +395,39 @@ Window {
                         }
                     }
 
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.stepBorder }
-                    SectionLabel { labelText: "MIDI LEARN" }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: root.stepBorder
+                    }
+                    SectionLabel {
+                        labelText: "MIDI LEARN"
+                    }
 
-                    MidiLearnRow { label: "Record"; target: "record"; engine: engine }
-                    MidiLearnRow { label: "Play";   target: "play";   engine: engine }
-                    MidiLearnRow { label: "Stop";   target: "stop";   engine: engine }
-                    MidiLearnRow { label: "Clear";  target: "clear";  engine: engine }
+                    MidiLearnRow {
+                        label: "Record"
+                        target: "record"
+                        engine: engine
+                    }
+                    MidiLearnRow {
+                        label: "Play"
+                        target: "play"
+                        engine: engine
+                    }
+                    MidiLearnRow {
+                        label: "Stop"
+                        target: "stop"
+                        engine: engine
+                    }
+                    MidiLearnRow {
+                        label: "Clear"
+                        target: "clear"
+                        engine: engine
+                    }
 
-                    Item { Layout.fillHeight: true }
+                    Item {
+                        Layout.fillHeight: true
+                    }
 
                     // Virtual port info
                     Rectangle {
@@ -310,10 +437,24 @@ Window {
                         color: "#0f2027"
                         border.color: "#164e63"
                         Column {
-                            anchors { fill: parent; margins: 8 }
+                            anchors {
+                                fill: parent
+                                margins: 8
+                            }
                             spacing: 2
-                            Text { text: "Virtual Port"; color: "#38bdf8"; font.pixelSize: 10; font.bold: true }
-                            Text { text: "LoopMidi Output"; color: root.textMuted; font.pixelSize: 10; elide: Text.ElideRight; width: parent.width }
+                            Text {
+                                text: "Virtual Port"
+                                color: "#38bdf8"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+                            Text {
+                                text: "LoopMidi Output"
+                                color: root.textMuted
+                                font.pixelSize: 10
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
                         }
                     }
                 }
@@ -332,7 +473,10 @@ Window {
                     color: root.panelBg
 
                     ColumnLayout {
-                        anchors { fill: parent; margins: 24 }
+                        anchors {
+                            fill: parent
+                            margins: 24
+                        }
                         spacing: 20
 
                         // Title row
@@ -344,17 +488,23 @@ Window {
                                 font.letterSpacing: 3
                                 color: root.textMuted
                             }
-                            Item { Layout.fillWidth: true }
+                            Item {
+                                Layout.fillWidth: true
+                            }
                             Text {
                                 text: {
-                                    if (engine.recording) return "● RECORDING — play notes on your keyboard"
-                                    if (engine.playing)   return "▶ PLAYING"
-                                    return "STOPPED"
+                                    if (engine.recording)
+                                        return "● RECORDING — play notes on your keyboard";
+                                    if (engine.playing)
+                                        return "▶ PLAYING";
+                                    return "STOPPED";
                                 }
                                 color: {
-                                    if (engine.recording) return root.recColor
-                                    if (engine.playing)   return root.playColor
-                                    return root.textMuted
+                                    if (engine.recording)
+                                        return root.recColor;
+                                    if (engine.playing)
+                                        return root.playColor;
+                                    return root.textMuted;
                                 }
                                 font.pixelSize: 13
                                 font.bold: engine.recording || engine.playing
@@ -398,7 +548,11 @@ Window {
                             clip: true
 
                             Text {
-                                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 16 }
+                                anchors {
+                                    left: parent.left
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: 16
+                                }
                                 text: "LIVE INPUT"
                                 font.pixelSize: 10
                                 font.letterSpacing: 2
@@ -407,12 +561,18 @@ Window {
 
                             NoteVisualizer {
                                 id: noteViz
-                                anchors { fill: parent; leftMargin: 90; margins: 8 }
+                                anchors {
+                                    fill: parent
+                                    leftMargin: 90
+                                    margins: 8
+                                }
                                 barColor: root.accent
                             }
                         }
 
-                        Item { Layout.fillHeight: true }
+                        Item {
+                            Layout.fillHeight: true
+                        }
                     }
                 }
 
@@ -421,10 +581,17 @@ Window {
                     Layout.fillWidth: true
                     height: 72
                     color: "#0d0d12"
-                    border { color: "#1e1e2e"; width: 1 }
+                    border {
+                        color: "#1e1e2e"
+                        width: 1
+                    }
 
                     RowLayout {
-                        anchors { fill: parent; leftMargin: 24; rightMargin: 24 }
+                        anchors {
+                            fill: parent
+                            leftMargin: 24
+                            rightMargin: 24
+                        }
                         spacing: 12
 
                         // Record
@@ -457,7 +624,9 @@ Window {
                             onClicked: engine.clearSequence()
                         }
 
-                        Item { Layout.fillWidth: true }
+                        Item {
+                            Layout.fillWidth: true
+                        }
 
                         // BPM control in transport bar
                         Column {
@@ -474,10 +643,17 @@ Window {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 // Decrease BPM
                                 Rectangle {
-                                    width: 22; height: 22; radius: 5
+                                    width: 22
+                                    height: 22
+                                    radius: 5
                                     color: bpmMinusMouse.containsMouse ? "#2d2d3d" : root.cardBg
                                     border.color: root.stepBorder
-                                    Text { anchors.centerIn: parent; text: "−"; font.pixelSize: 14; color: root.accentLight }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "−"
+                                        font.pixelSize: 14
+                                        color: root.accentLight
+                                    }
                                     MouseArea {
                                         id: bpmMinusMouse
                                         anchors.fill: parent
@@ -485,11 +661,17 @@ Window {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: engine.bpm = Math.max(40, engine.bpm - 5)
                                     }
-                                    Behavior on color { ColorAnimation { duration: 80 } }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: 80
+                                        }
+                                    }
                                 }
                                 // BPM value (scroll to adjust)
                                 Rectangle {
-                                    width: 52; height: 22; radius: 5
+                                    width: 52
+                                    height: 22
+                                    radius: 5
                                     color: root.cardBg
                                     border.color: root.stepBorder
                                     Text {
@@ -502,18 +684,25 @@ Window {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.SizeVerCursor
-                                        onWheel: (wheel) => {
-                                            var delta = wheel.angleDelta.y > 0 ? 1 : -1
-                                            engine.bpm = Math.max(40, Math.min(240, engine.bpm + delta))
+                                        onWheel: wheel => {
+                                            var delta = wheel.angleDelta.y > 0 ? 1 : -1;
+                                            engine.bpm = Math.max(40, Math.min(240, engine.bpm + delta));
                                         }
                                     }
                                 }
                                 // Increase BPM
                                 Rectangle {
-                                    width: 22; height: 22; radius: 5
+                                    width: 22
+                                    height: 22
+                                    radius: 5
                                     color: bpmPlusMouse.containsMouse ? "#2d2d3d" : root.cardBg
                                     border.color: root.stepBorder
-                                    Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 14; color: root.accentLight }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "+"
+                                        font.pixelSize: 14
+                                        color: root.accentLight
+                                    }
                                     MouseArea {
                                         id: bpmPlusMouse
                                         anchors.fill: parent
@@ -521,7 +710,11 @@ Window {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: engine.bpm = Math.min(240, engine.bpm + 5)
                                     }
-                                    Behavior on color { ColorAnimation { duration: 80 } }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: 80
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -538,8 +731,8 @@ Window {
                             }
                             Text {
                                 text: {
-                                    var s = engine.currentStep
-                                    return (s >= 0 ? s + 1 : "-") + " / 16"
+                                    var s = engine.currentStep;
+                                    return (s >= 0 ? s + 1 : "-") + " / 16";
                                 }
                                 font.pixelSize: 22
                                 font.bold: true
@@ -570,9 +763,16 @@ Window {
                                     border.color: parent.checked ? "#38bdf8" : root.stepBorder
                                     Rectangle {
                                         x: parent.parent.checked ? parent.width - width - 2 : 2
-                                        y: 2; width: 18; height: 18; radius: 9
+                                        y: 2
+                                        width: 18
+                                        height: 18
+                                        radius: 9
                                         color: "white"
-                                        Behavior on x { NumberAnimation { duration: 150 } }
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 150
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -584,9 +784,27 @@ Window {
     }
 
     // Keyboard shortcuts
-    Shortcut { sequence: "R"; onActivated: engine.recording ? engine.stopRecording() : engine.startRecording() }
-    Shortcut { sequence: "Space"; onActivated: engine.playing ? engine.stopPlayback() : engine.startPlayback() }
-    Shortcut { sequence: "C"; onActivated: engine.clearSequence() }
-    Shortcut { sequence: "Escape"; onActivated: { engine.stopRecording(); engine.stopPlayback() } }
-    Shortcut { sequence: "Ctrl+Q"; onActivated: app.quit() }
+    Shortcut {
+        sequence: "R"
+        onActivated: engine.recording ? engine.stopRecording() : engine.startRecording()
+    }
+    Shortcut {
+        sequence: "Space"
+        onActivated: engine.playing ? engine.stopPlayback() : engine.startPlayback()
+    }
+    Shortcut {
+        sequence: "C"
+        onActivated: engine.clearSequence()
+    }
+    Shortcut {
+        sequence: "Escape"
+        onActivated: {
+            engine.stopRecording();
+            engine.stopPlayback();
+        }
+    }
+    Shortcut {
+        sequence: "Ctrl+Q"
+        onActivated: app.quit()
+    }
 }

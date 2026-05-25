@@ -1,4 +1,5 @@
 /build
+/build-check
 
 # Devenv
 .devenv*
@@ -10,3 +11,4 @@ devenv.local.yaml
 
 # pre-commit
 .pre-commit-config.yaml
+/.shared
