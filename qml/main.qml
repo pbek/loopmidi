@@ -147,10 +147,20 @@ Window {
                         spacing: 6
                         Text { text: "Input"; color: root.textMuted; font.pixelSize: 11 }
                         ComboBox {
+                            id: inputPortCombo
                             width: parent.width
                             model: engine.inputPorts
                             currentIndex: engine.selectedInputPort
-                            onCurrentIndexChanged: engine.selectedInputPort = currentIndex
+                            onActivated: engine.setSelectedInputPort(currentIndex)
+                            Connections {
+                                target: engine
+                                function onSelectedInputPortChanged() {
+                                    inputPortCombo.currentIndex = engine.selectedInputPort
+                                }
+                                function onPortsChanged() {
+                                    inputPortCombo.currentIndex = engine.selectedInputPort
+                                }
+                            }
                             background: Rectangle {
                                 color: root.cardBg
                                 border.color: root.stepBorder
@@ -191,10 +201,20 @@ Window {
                         spacing: 6
                         Text { text: "Output (hardware)"; color: root.textMuted; font.pixelSize: 11 }
                         ComboBox {
+                            id: outputPortCombo
                             width: parent.width
                             model: engine.outputPorts
                             currentIndex: engine.selectedOutputPort
-                            onCurrentIndexChanged: engine.selectedOutputPort = currentIndex
+                            onActivated: engine.setSelectedOutputPort(currentIndex)
+                            Connections {
+                                target: engine
+                                function onSelectedOutputPortChanged() {
+                                    outputPortCombo.currentIndex = engine.selectedOutputPort
+                                }
+                                function onPortsChanged() {
+                                    outputPortCombo.currentIndex = engine.selectedOutputPort
+                                }
+                            }
                             background: Rectangle { color: root.cardBg; border.color: root.stepBorder; radius: 6 }
                             contentItem: Text {
                                 leftPadding: 10

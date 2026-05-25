@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
     app.setApplicationName("LoopMidi");
     app.setApplicationVersion(APP_VERSION);
     app.setOrganizationName("LoopMidi");
+    app.setDesktopFileName("loopmidi"); // matches loopmidi.desktop — KDE uses this for taskbar icon
     app.setWindowIcon(QIcon(":/icons/app.png"));
 
     qmlRegisterType<MidiEngine>("LoopMidi", 1, 0, "MidiEngine");

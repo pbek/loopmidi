@@ -18,13 +18,15 @@ Rectangle {
     height: 80
     radius: 10
 
-    readonly property bool hasNote: stepData && stepData.active
-    readonly property int noteNum: hasNote ? stepData.note : 0
-    readonly property int noteVel: hasNote ? stepData.velocity : 0
+    readonly property bool hasNote:   stepData && stepData.active
+    readonly property int  noteNum:   hasNote ? stepData.note : 0
+    readonly property int  noteVel:   hasNote ? stepData.velocity : 0
+    readonly property int  noteCount: (stepData && stepData.noteCount) ? stepData.noteCount : 0
+    readonly property bool isChord:   noteCount > 1
 
     // Note name helper
-    readonly property var noteNames: ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
-    readonly property string noteName: hasNote ? noteNames[noteNum % 12] + Math.floor(noteNum / 12 - 1) : "—"
+    readonly property var    noteNames: ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+    readonly property string noteName:  hasNote ? noteNames[noteNum % 12] + Math.floor(noteNum / 12 - 1) : "—"
 
     color: {
         if (isCurrentStep && isRecordingStep) return Qt.rgba(0.94, 0.27, 0.27, 0.25)
@@ -41,7 +43,7 @@ Rectangle {
     }
     border.width: isCurrentStep ? 2 : 1
 
-    // Velocity bar
+    // Velocity bar (height proportional to first/lowest note velocity)
     Rectangle {
         visible: hasNote
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right; bottomMargin: 0 }
@@ -77,6 +79,25 @@ Rectangle {
         }
     }
 
+    // Chord badge: shown when step contains >1 note
+    Rectangle {
+        visible: isChord
+        anchors { top: parent.top; right: parent.right; topMargin: 5; rightMargin: 5 }
+        width: chordLabel.implicitWidth + 8
+        height: 16
+        radius: 8
+        color: isCurrentStep ? accentColor : Qt.rgba(0.49, 0.23, 0.93, 0.7)
+
+        Text {
+            id: chordLabel
+            anchors.centerIn: parent
+            text: "×" + noteCount
+            font.pixelSize: 9
+            font.bold: true
+            color: "white"
+        }
+    }
+
     // Pulse animation for current step
     Rectangle {
         id: pulse
@@ -95,6 +116,6 @@ Rectangle {
         }
     }
 
-    Behavior on color { ColorAnimation { duration: 100 } }
+    Behavior on color       { ColorAnimation { duration: 100 } }
     Behavior on border.color { ColorAnimation { duration: 100 } }
 }

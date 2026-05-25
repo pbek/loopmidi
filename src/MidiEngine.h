@@ -6,6 +6,7 @@
 #include <QVariantList>
 #include <QMutex>
 #include <QString>
+#include <QSettings>
 #include <memory>
 #include <rtmidi/RtMidi.h>
 
@@ -13,8 +14,10 @@ struct NoteEvent {
     int note = 0;
     int velocity = 0;
     int channel = 0;
-    double timestamp = 0.0;
 };
+
+// One step = zero or more simultaneous notes (a chord)
+using ChordStep = QVector<NoteEvent>;
 
 struct MidiLearnTarget {
     enum Type { None, Record, Play, Stop, Clear };
@@ -101,32 +104,41 @@ private:
     void openOutputPort(int port);
     void handleMidiLearn(int ccOrNote, bool isCC);
     void advanceStep();
+    void commitChordStep();         // close current chord window, move to next step
     void sendNoteOn(int note, int velocity, int channel);
     void sendNoteOff(int note, int channel);
     void stopAllNotes();
-    void pollPorts();   // hotplug detection
+    void pollPorts();
+    void loadSettings();
+    void saveSettings() const;
+    void tryRestoreSavedPorts();
     static void midiCallback(double deltatime, std::vector<unsigned char>* message, void* userData);
 
     std::unique_ptr<RtMidiIn>  m_midiIn;
     std::unique_ptr<RtMidiOut> m_midiOut;   // virtual output (LoopMidi port)
     std::unique_ptr<RtMidiOut> m_midiOutHW; // hardware output
 
-    QVector<NoteEvent> m_sequence;
+    // Sequence: m_maxSteps steps, each step is a chord (list of simultaneous notes)
+    QVector<ChordStep> m_sequence;
     int m_maxSteps = 16;
     bool m_recording = false;
     bool m_playing = false;
     int m_currentStep = -1;
     double m_bpm = 120.0;
 
-    QTimer* m_stepTimer = nullptr;
-    QTimer* m_hotplugTimer = nullptr;   // polls for device changes
-    int m_lastPlayedNote = -1;
-    int m_lastPlayedChannel = 0;
+    QTimer* m_stepTimer    = nullptr;
+    QTimer* m_hotplugTimer = nullptr;
+    QTimer* m_chordTimer   = nullptr; // 30 ms window to group simultaneous notes
+
+    // Notes currently sounding during playback (for Note-Off on next tick)
+    QVector<NoteEvent> m_activePlaybackNotes;
 
     QStringList m_inputPorts;
     QStringList m_outputPorts;
-    int m_selectedInputPort = -1;
+    int m_selectedInputPort  = -1;
     int m_selectedOutputPort = -1;
+    QString m_savedInputName;
+    QString m_savedOutputName;
 
     bool m_midiLearnActive = false;
     QString m_midiLearnTargetStr;
