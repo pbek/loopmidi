@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.2.0] — 2026-05-25
 
 ### Added
+
 - **Manual cursor placement**: left-click any step cell to place a teal recording cursor on that step. Clicking the same cell again clears the cursor. The cursor is shown with a teal border, teal dot indicator, and teal text; the status bar displays "CURSOR — step N (click again to clear)".
 - **Cursor-aware recording**: the Record button and `R` shortcut no longer wipe the entire sequence before recording. Instead, recording starts from the manually-placed cursor step if one is set, or automatically from the first empty step if no cursor is set. If all steps are filled and no cursor is placed, recording starts from step 0 (overwrite from the beginning). The cursor is consumed (cleared) when recording starts.
 - **Per-step delete**: right-click any step cell → "Delete step" clears that single step without affecting the rest of the sequence. Playback continues; that step becomes silent on its next pass.
@@ -29,6 +30,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Polyphonic sequencer: the sequencer now records and replays chords (multiple simultaneous notes). Note-On events arriving within a 30 ms window are grouped into the same step. During playback, all notes in a step are sent simultaneously and stopped together on the next tick. Step cells show a `×N` badge when the step contains a chord.
 
 ### Changed
+
 - Manual "Refresh Ports" button removed from the MIDI input row — hotplug detection makes it redundant.
 - License updated from MIT to GNU General Public License v3 (GPLv3).
 - `startRecording()` no longer calls `clearSequence()`. Existing notes in steps before the start position are preserved.
@@ -37,6 +39,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Status bar text updates to reflect cursor state when the engine is stopped.
 
 ### Fixed
+
 - Record, Play, and Clear transport buttons showed a duplicate icon (icon appeared in both `iconText` and inside the `label` string). Labels are now icon-free; `iconText` is the single icon source.
 - `Ctrl+Q` now reliably quits by calling `QGuiApplication::quit()` via a context property instead of `Qt.quit()` which was silently ignored.
 - `flake.nix` meta now declares `licenses.gpl3Only` instead of the incorrect `licenses.mit`.
@@ -51,6 +54,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `nix run` taskbar icon: on first launch the `.desktop` file and PNG icon are copied to `~/.local/share`, allowing `xdg-desktop-portal` to resolve the app ID and display the icon in KDE/Wayland taskbars.
 
 ### Changed
+
 - Manual "Refresh Ports" button removed from the MIDI input row — hotplug detection makes it redundant.
 - License updated from MIT to GNU General Public License v3 (GPLv3).
 
@@ -59,6 +63,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] — 2024-01-01
 
 ### Added
+
 - Initial release of LoopMidi.
 - 16-step MIDI note sequencer.
 - Virtual MIDI output port ("LoopMidi Output") visible to Surge-XT and other DAWs.

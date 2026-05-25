@@ -8,7 +8,7 @@ Rectangle {
     property color activeColor: "#7c3aed"
     property bool active: false
     property string shortcut: ""
-    signal clicked()
+    signal clicked
 
     implicitWidth: 130
     implicitHeight: 44
@@ -43,7 +43,19 @@ Rectangle {
         onReleased: root.scale = 1.0
     }
 
-    Behavior on scale { NumberAnimation { duration: 80 } }
-    Behavior on color { ColorAnimation { duration: 150 } }
-    Behavior on border.color { ColorAnimation { duration: 150 } }
+    Behavior on scale {
+        NumberAnimation {
+            duration: 80
+        }
+    }
+    Behavior on color {
+        ColorAnimation {
+            duration: 150
+        }
+    }
+    Behavior on border.color {
+        ColorAnimation {
+            duration: 150
+        }
+    }
 }

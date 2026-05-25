@@ -544,9 +544,9 @@ Window {
                                     onCursorClicked: idx => {
                                         // Toggle off if clicking the same cell again
                                         if (engine.cursorStep === idx)
-                                            engine.setCursorStep(-1)
+                                            engine.setCursorStep(-1);
                                         else
-                                            engine.setCursorStep(idx)
+                                            engine.setCursorStep(idx);
                                     }
                                 }
                             }

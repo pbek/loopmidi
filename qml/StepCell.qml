@@ -24,41 +24,58 @@ Rectangle {
     height: 80
     radius: 10
 
-    readonly property bool hasNote:   stepData && stepData.active
-    readonly property int  noteNum:   hasNote ? stepData.note : 0
-    readonly property int  noteVel:   hasNote ? stepData.velocity : 0
-    readonly property int  noteCount: (stepData && stepData.noteCount) ? stepData.noteCount : 0
-    readonly property bool isChord:   noteCount > 1
+    readonly property bool hasNote: stepData && stepData.active
+    readonly property int noteNum: hasNote ? stepData.note : 0
+    readonly property int noteVel: hasNote ? stepData.velocity : 0
+    readonly property int noteCount: (stepData && stepData.noteCount) ? stepData.noteCount : 0
+    readonly property bool isChord: noteCount > 1
 
     // Note name helper
-    readonly property var    noteNames: ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
-    readonly property string noteName:  hasNote ? noteNames[noteNum % 12] + Math.floor(noteNum / 12 - 1) : "—"
+    readonly property var noteNames: ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    readonly property string noteName: hasNote ? noteNames[noteNum % 12] + Math.floor(noteNum / 12 - 1) : "—"
 
     color: {
-        if (isCurrentStep && isRecordingStep) return Qt.rgba(0.94, 0.27, 0.27, 0.25)
-        if (isCurrentStep) return Qt.rgba(0.49, 0.23, 0.93, 0.35)
-        if (isCursorStep) return Qt.rgba(0.055, 0.643, 0.914, 0.12)
-        if (hasNote) return Qt.rgba(0.49, 0.23, 0.93, 0.15)
-        return stepEmptyColor
+        if (isCurrentStep && isRecordingStep)
+            return Qt.rgba(0.94, 0.27, 0.27, 0.25);
+        if (isCurrentStep)
+            return Qt.rgba(0.49, 0.23, 0.93, 0.35);
+        if (isCursorStep)
+            return Qt.rgba(0.055, 0.643, 0.914, 0.12);
+        if (hasNote)
+            return Qt.rgba(0.49, 0.23, 0.93, 0.15);
+        return stepEmptyColor;
     }
 
     border.color: {
-        if (isCurrentStep && isRecordingStep) return recColor
-        if (isCurrentStep) return accentColor
-        if (isCursorStep) return cursorColor
-        if (hasNote) return Qt.rgba(0.49, 0.23, 0.93, 0.5)
-        return stepBorderColor
+        if (isCurrentStep && isRecordingStep)
+            return recColor;
+        if (isCurrentStep)
+            return accentColor;
+        if (isCursorStep)
+            return cursorColor;
+        if (hasNote)
+            return Qt.rgba(0.49, 0.23, 0.93, 0.5);
+        return stepBorderColor;
     }
     border.width: (isCurrentStep || isCursorStep) ? 2 : 1
 
     // Velocity bar (height proportional to first/lowest note velocity)
     Rectangle {
         visible: hasNote
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right; bottomMargin: 0 }
+        anchors {
+            bottom: parent.bottom
+            left: parent.left
+            right: parent.right
+            bottomMargin: 0
+        }
         height: Math.max(3, (noteVel / 127.0) * (parent.height - 8))
         radius: 10
         color: isCurrentStep ? accentColor : Qt.rgba(0.49, 0.23, 0.93, 0.4)
-        Behavior on height { NumberAnimation { duration: 100 } }
+        Behavior on height {
+            NumberAnimation {
+                duration: 100
+            }
+        }
     }
 
     Column {
@@ -71,10 +88,13 @@ Rectangle {
             font.pixelSize: hasNote ? 16 : 12
             font.bold: hasNote
             color: {
-                if (isCurrentStep) return accentLightColor
-                if (isCursorStep && !hasNote) return cursorColor
-                if (hasNote) return textPrimaryColor
-                return textMutedColor
+                if (isCurrentStep)
+                    return accentLightColor;
+                if (isCursorStep && !hasNote)
+                    return cursorColor;
+                if (hasNote)
+                    return textPrimaryColor;
+                return textMutedColor;
             }
         }
 
@@ -91,7 +111,12 @@ Rectangle {
     // Chord badge: shown when step contains >1 note
     Rectangle {
         visible: isChord
-        anchors { top: parent.top; right: parent.right; topMargin: 5; rightMargin: 5 }
+        anchors {
+            top: parent.top
+            right: parent.right
+            topMargin: 5
+            rightMargin: 5
+        }
         width: chordLabel.implicitWidth + 8
         height: 16
         radius: 8
@@ -110,7 +135,12 @@ Rectangle {
     // Cursor indicator: small teal triangle/arrow at top-left corner
     Rectangle {
         visible: isCursorStep && !isCurrentStep
-        anchors { top: parent.top; left: parent.left; topMargin: 5; leftMargin: 5 }
+        anchors {
+            top: parent.top
+            left: parent.left
+            topMargin: 5
+            leftMargin: 5
+        }
         width: 6
         height: 6
         radius: 3
@@ -130,13 +160,27 @@ Rectangle {
         SequentialAnimation on opacity {
             running: isCurrentStep
             loops: Animation.Infinite
-            NumberAnimation { to: 0.6; duration: 300 }
-            NumberAnimation { to: 0;   duration: 300 }
+            NumberAnimation {
+                to: 0.6
+                duration: 300
+            }
+            NumberAnimation {
+                to: 0
+                duration: 300
+            }
         }
     }
 
-    Behavior on color       { ColorAnimation { duration: 100 } }
-    Behavior on border.color { ColorAnimation { duration: 100 } }
+    Behavior on color {
+        ColorAnimation {
+            duration: 100
+        }
+    }
+    Behavior on border.color {
+        ColorAnimation {
+            duration: 100
+        }
+    }
 
     MouseArea {
         anchors.fill: parent
@@ -144,9 +188,9 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton)
-                contextMenu.popup()
+                contextMenu.popup();
             else if (mouse.button === Qt.LeftButton)
-                root.cursorClicked(root.stepIndex)
+                root.cursorClicked(root.stepIndex);
         }
     }
 

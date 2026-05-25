@@ -6,8 +6,10 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    { nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
@@ -15,7 +17,7 @@
         version = "0.2.0";
 
         loopmidi = pkgs.stdenv.mkDerivation {
-          pname   = "loopmidi";
+          pname = "loopmidi";
           inherit version;
 
           src = ./.;
@@ -28,7 +30,7 @@
 
           buildInputs = with pkgs; [
             qt6.qtbase
-            qt6.qtdeclarative   # Qt Quick / QML
+            qt6.qtdeclarative # Qt Quick / QML
             rtmidi
             alsa-lib
           ];
@@ -39,25 +41,30 @@
 
           # Prepend our share/ dir so XDG_DATA_DIRS includes icon/desktop paths,
           # allowing xdg-desktop-portal to resolve the app ID.
-          qtWrapperArgs = [ "--prefix" "XDG_DATA_DIRS" ":" "$out/share" ];
+          qtWrapperArgs = [
+            "--prefix"
+            "XDG_DATA_DIRS"
+            ":"
+            "$out/share"
+          ];
 
           meta = with pkgs.lib; {
             description = "MIDI loop sequencer: record 16 notes, loop them as a virtual MIDI device";
-            homepage    = "https://github.com/yourusername/loopmidi";
-            license     = licenses.gpl3Only;
-            platforms   = platforms.linux;
+            homepage = "https://github.com/yourusername/loopmidi";
+            license = licenses.gpl3Only;
+            platforms = platforms.linux;
             mainProgram = "loopmidi";
           };
         };
       in
       {
         packages = {
-          default  = loopmidi;
-          loopmidi = loopmidi;
+          default = loopmidi;
+          inherit loopmidi;
         };
 
         apps.default = flake-utils.lib.mkApp {
-          drv  = loopmidi;
+          drv = loopmidi;
           name = "loopmidi";
         };
 
@@ -71,7 +78,7 @@
             rtmidi
             alsa-lib
             gdb
-            clang-tools   # clangd LSP
+            clang-tools # clangd LSP
           ];
 
           shellHook = ''
@@ -79,5 +86,6 @@
             echo "LoopMidi dev shell — version ${version}"
           '';
         };
-      });
+      }
+    );
 }

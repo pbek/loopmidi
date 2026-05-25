@@ -24,24 +24,32 @@ RowLayout {
         border.color: isLearning ? "#f59e0b" : "#2d2d3d"
         border.width: isLearning ? 2 : 1
 
-        readonly property bool isLearning:
-            engine && engine.midiLearnActive && engine.midiLearnTarget === target
+        readonly property bool isLearning: engine && engine.midiLearnActive && engine.midiLearnTarget === target
 
         readonly property int binding: {
-            if (!engine) return -1
-            if (target === "record") return engine.recordButton
-            if (target === "play")   return engine.playButton
-            if (target === "stop")   return engine.stopButton
-            if (target === "clear")  return engine.clearButton
-            return -1
+            if (!engine)
+                return -1;
+            if (target === "record")
+                return engine.recordButton;
+            if (target === "play")
+                return engine.playButton;
+            if (target === "stop")
+                return engine.stopButton;
+            if (target === "clear")
+                return engine.clearButton;
+            return -1;
         }
 
         Text {
-            anchors { fill: parent; leftMargin: 8 }
+            anchors {
+                fill: parent
+                leftMargin: 8
+            }
             verticalAlignment: Text.AlignVCenter
             text: {
-                if (parent.isLearning) return "▶ move a knob/button..."
-                return parent.binding >= 0 ? "CC " + parent.binding : "—"
+                if (parent.isLearning)
+                    return "▶ move a knob/button...";
+                return parent.binding >= 0 ? "CC " + parent.binding : "—";
             }
             color: parent.isLearning ? "#f59e0b" : (parent.binding >= 0 ? "#a78bfa" : "#475569")
             font.pixelSize: 10
@@ -51,7 +59,8 @@ RowLayout {
 
     // Learn button
     Rectangle {
-        width: 22; height: 22
+        width: 22
+        height: 22
         radius: 5
         color: mouseArea.containsMouse ? "#1e1e2e" : "transparent"
         border.color: "#2d2d3d"
@@ -68,11 +77,12 @@ RowLayout {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                if (!engine) return
+                if (!engine)
+                    return;
                 if (engine.midiLearnActive && engine.midiLearnTarget === target)
-                    engine.cancelMidiLearn()
+                    engine.cancelMidiLearn();
                 else
-                    engine.startMidiLearn(target)
+                    engine.startMidiLearn(target);
             }
         }
     }

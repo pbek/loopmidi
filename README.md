@@ -6,15 +6,15 @@
 
 ## Features
 
-| Feature | Details |
-|---|---|
-| **16-step recorder** | Play up to 16 notes; recording stops automatically and playback starts |
-| **Virtual MIDI output** | Exposes "LoopMidi Output" — connect Surge-XT or any app to it |
-| **Passthrough** | Notes from your keyboard are forwarded live to the virtual port while playing/idle |
-| **Adjustable BPM** | 40 – 240 BPM slider for playback speed |
-| **MIDI Learn** | Bind Record / Play / Stop / Clear to any CC knob or pad on your controller |
-| **Keyboard shortcuts** | `R` record, `Space` play/stop, `C` clear, `Esc` stop all |
-| **Beautiful dark UI** | Step grid with velocity bars, live note visualizer, animated indicators |
+| Feature                 | Details                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| **16-step recorder**    | Play up to 16 notes; recording stops automatically and playback starts             |
+| **Virtual MIDI output** | Exposes "LoopMidi Output" — connect Surge-XT or any app to it                      |
+| **Passthrough**         | Notes from your keyboard are forwarded live to the virtual port while playing/idle |
+| **Adjustable BPM**      | 40 – 240 BPM slider for playback speed                                             |
+| **MIDI Learn**          | Bind Record / Play / Stop / Clear to any CC knob or pad on your controller         |
+| **Keyboard shortcuts**  | `R` record, `Space` play/stop, `C` clear, `Esc` stop all                           |
+| **Beautiful dark UI**   | Step grid with velocity bars, live note visualizer, animated indicators            |
 
 ---
 

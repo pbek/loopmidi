@@ -6,7 +6,7 @@ Rectangle {
     property bool active: false
     property color activeColor: "#7c3aed"
     property bool clickable: false
-    signal toggled()
+    signal toggled
 
     implicitWidth: 54
     implicitHeight: 22
@@ -19,15 +19,23 @@ Rectangle {
         anchors.centerIn: parent
         spacing: 4
         Rectangle {
-            width: 6; height: 6; radius: 3
+            width: 6
+            height: 6
+            radius: 3
             color: root.active ? root.activeColor : "#334155"
             anchors.verticalCenter: parent.verticalCenter
 
             SequentialAnimation on opacity {
                 running: root.active
                 loops: Animation.Infinite
-                NumberAnimation { to: 0.3; duration: 600 }
-                NumberAnimation { to: 1.0; duration: 600 }
+                NumberAnimation {
+                    to: 0.3
+                    duration: 600
+                }
+                NumberAnimation {
+                    to: 1.0
+                    duration: 600
+                }
             }
         }
         Text {
@@ -47,5 +55,9 @@ Rectangle {
         onClicked: root.toggled()
     }
 
-    Behavior on color { ColorAnimation { duration: 200 } }
+    Behavior on color {
+        ColorAnimation {
+            duration: 200
+        }
+    }
 }

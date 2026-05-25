@@ -49,7 +49,8 @@ class MidiEngine : public QObject {
   Q_PROPERTY(int playButton READ playButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int stopButton READ stopButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int clearButton READ clearButton NOTIFY midiBindingsChanged)
-  Q_PROPERTY(int stepRecordTarget READ stepRecordTarget NOTIFY stepRecordTargetChanged)
+  Q_PROPERTY(
+      int stepRecordTarget READ stepRecordTarget NOTIFY stepRecordTargetChanged)
   Q_PROPERTY(int cursorStep READ cursorStep NOTIFY cursorStepChanged)
 
 public:
@@ -173,7 +174,8 @@ private:
   // Single-step re-record target (-1 = none)
   int m_stepRecordTarget = -1;
 
-  // Manual cursor: where the next recording will start (-1 = auto = first empty step)
+  // Manual cursor: where the next recording will start (-1 = auto = first empty
+  // step)
   int m_cursorStep = -1;
 
   QMutex m_mutex;
