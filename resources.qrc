@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/StepCell.qml</file>
+        <file>qml/TransportButton.qml</file>
+        <file>qml/StatusPill.qml</file>
+        <file>qml/SectionLabel.qml</file>
+        <file>qml/NoteVisualizer.qml</file>
+        <file>qml/MidiLearnRow.qml</file>
+        <file>qml/LoopButton.qml</file>
+    </qresource>
+</RCC>
