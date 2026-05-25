@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=LoopMidi
+Comment=MIDI Loop Sequencer
+Exec=loopmidi
+Icon=loopmidi
+Type=Application
+Categories=Audio;Music;

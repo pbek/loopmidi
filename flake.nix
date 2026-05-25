@@ -37,32 +37,9 @@
             "-DAPP_VERSION=${version}"
           ];
 
-          postInstall = ''
-            # Install icon for window managers / taskbars
-            install -Dm644 $src/icons/app.png \
-              $out/share/icons/hicolor/256x256/apps/loopmidi.png
-
-            # Install .desktop file so app launchers show the icon
-            mkdir -p $out/share/applications
-            cat > $out/share/applications/loopmidi.desktop << EOF
-[Desktop Entry]
-Name=LoopMidi
-Comment=MIDI Loop Sequencer
-Exec=loopmidi
-Icon=loopmidi
-Type=Application
-Categories=Audio;Music;
-EOF
-          '';
-
-          # - Prepend our share/ dir so the .desktop file is findable
-          # - Unset QT_QPA_PLATFORMTHEME so Qt skips the xdg-desktop-portal
-          #   icon lookup (which fails without a system-level .desktop install)
-          #   and instead sets _NET_WM_ICON directly from the embedded resource.
-          qtWrapperArgs = [
-            "--prefix" "XDG_DATA_DIRS" ":" "$out/share"
-            "--unset" "QT_QPA_PLATFORMTHEME"
-          ];
+          # Prepend our share/ dir so XDG_DATA_DIRS includes icon/desktop paths,
+          # allowing xdg-desktop-portal to resolve the app ID.
+          qtWrapperArgs = [ "--prefix" "XDG_DATA_DIRS" ":" "$out/share" ];
 
           meta = with pkgs.lib; {
             description = "MIDI loop sequencer: record 16 notes, loop them as a virtual MIDI device";

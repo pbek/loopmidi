@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
+include(GNUInstallDirs)
 
 # Version is injected by the Nix flake (or defaults to 0.0.0 for local dev)
 if(NOT DEFINED APP_VERSION)
@@ -63,4 +64,11 @@ target_link_libraries(loopmidi PRIVATE
 
 target_compile_options(loopmidi PRIVATE ${RTMIDI_CFLAGS_OTHER})
 
-install(TARGETS loopmidi RUNTIME DESTINATION bin)
+install(TARGETS loopmidi RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Install desktop file and icon so xdg-desktop-portal can resolve the app ID
+install(FILES loopmidi.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES icons/app.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+    RENAME loopmidi.png)
