@@ -49,6 +49,8 @@ class MidiEngine : public QObject {
   Q_PROPERTY(int playButton READ playButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int stopButton READ stopButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int clearButton READ clearButton NOTIFY midiBindingsChanged)
+  Q_PROPERTY(int stepRecordTarget READ stepRecordTarget NOTIFY stepRecordTargetChanged)
+  Q_PROPERTY(int cursorStep READ cursorStep NOTIFY cursorStepChanged)
 
 public:
   explicit MidiEngine(QObject *parent = nullptr);
@@ -70,6 +72,8 @@ public:
   int playButton() const { return m_playButton; }
   int stopButton() const { return m_stopButton; }
   int clearButton() const { return m_clearButton; }
+  int stepRecordTarget() const { return m_stepRecordTarget; }
+  int cursorStep() const { return m_cursorStep; }
 
   void setSelectedInputPort(int port);
   void setSelectedOutputPort(int port);
@@ -82,6 +86,9 @@ public slots:
   void startPlayback();
   void stopPlayback();
   void clearSequence();
+  void clearStep(int index);
+  void recordStep(int index);
+  void setCursorStep(int index);
   void refreshPorts();
   void startMidiLearn(const QString &target);
   void cancelMidiLearn();
@@ -101,6 +108,8 @@ signals:
   void midiBindingsChanged();
   void noteReceived(int note, int velocity, int channel);
   void errorOccurred(const QString &message);
+  void stepRecordTargetChanged();
+  void cursorStepChanged();
 
 public:
   void processIncomingMidi(const std::vector<unsigned char> &message);
@@ -160,6 +169,12 @@ private:
   int m_playButton = -1;
   int m_stopButton = -1;
   int m_clearButton = -1;
+
+  // Single-step re-record target (-1 = none)
+  int m_stepRecordTarget = -1;
+
+  // Manual cursor: where the next recording will start (-1 = auto = first empty step)
+  int m_cursorStep = -1;
 
   QMutex m_mutex;
   bool m_virtualPortOpen = false;

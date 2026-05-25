@@ -9,6 +9,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.2.0] — 2026-05-25
 
 ### Added
+- **Manual cursor placement**: left-click any step cell to place a teal recording cursor on that step. Clicking the same cell again clears the cursor. The cursor is shown with a teal border, teal dot indicator, and teal text; the status bar displays "CURSOR — step N (click again to clear)".
+- **Cursor-aware recording**: the Record button and `R` shortcut no longer wipe the entire sequence before recording. Instead, recording starts from the manually-placed cursor step if one is set, or automatically from the first empty step if no cursor is set. If all steps are filled and no cursor is placed, recording starts from step 0 (overwrite from the beginning). The cursor is consumed (cleared) when recording starts.
+- **Per-step delete**: right-click any step cell → "Delete step" clears that single step without affecting the rest of the sequence. Playback continues; that step becomes silent on its next pass.
+- **Per-step re-record**: right-click any step cell → "Re-record step" arms just that step for re-recording. The step is pre-cleared, the REC indicator lights up, and the next chord played (within the 30 ms chord window) overwrites only that step. Recording stops automatically after the chord is committed; playback is uninterrupted.
+- `MidiEngine::clearStep(int index)` — public slot callable from QML.
+- `MidiEngine::recordStep(int index)` — arms a single step for chord capture.
+- `MidiEngine::setCursorStep(int index)` — sets or clears the manual cursor; pass `-1` to revert to auto mode.
+- `cursorStep` Q_PROPERTY (read-only, notifies `cursorStepChanged`) exposed to QML.
+- `stepRecordTarget` Q_PROPERTY exposed to QML (indicates which step is being re-recorded, `-1` when none).
 - App icon (purple loop arrow with MIDI note bars, dark background).
   - Set as `QIcon` in `main.cpp` and via `Window { icon.source }` in QML for full window-manager coverage.
   - Installed to `share/icons/hicolor/256x256/apps/loopmidi.png` in the Nix package.
@@ -18,6 +27,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - MIDI device hotplug detection: input and output port lists update automatically every second when devices are connected or disconnected. No manual refresh needed.
 - `QSettings` persistence: BPM, selected input/output port (stored by name, not index), and MIDI Learn bindings are saved on every change and restored on next launch. Ports are matched by name against the live device list, so the correct device is reopened even if its index shifts.
 - Polyphonic sequencer: the sequencer now records and replays chords (multiple simultaneous notes). Note-On events arriving within a 30 ms window are grouped into the same step. During playback, all notes in a step are sent simultaneously and stopped together on the next tick. Step cells show a `×N` badge when the step contains a chord.
+
+### Changed
+- Manual "Refresh Ports" button removed from the MIDI input row — hotplug detection makes it redundant.
+- License updated from MIT to GNU General Public License v3 (GPLv3).
+- `startRecording()` no longer calls `clearSequence()`. Existing notes in steps before the start position are preserved.
+- `StepCell.qml` now handles both left-click (cursor placement) and right-click (context menu) via a unified `MouseArea`. Accepts `Qt.LeftButton | Qt.RightButton`.
+- Step cell visual priority order: recording-current > playback-current > cursor > has-note > empty.
+- Status bar text updates to reflect cursor state when the engine is stopped.
 
 ### Fixed
 - Record, Play, and Clear transport buttons showed a duplicate icon (icon appeared in both `iconText` and inside the `label` string). Labels are now icon-free; `iconText` is the single icon source.

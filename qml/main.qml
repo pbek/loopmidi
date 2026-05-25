@@ -497,13 +497,17 @@ Window {
                                         return "● RECORDING — play notes on your keyboard";
                                     if (engine.playing)
                                         return "▶ PLAYING";
-                                    return "STOPPED";
+                                    if (engine.cursorStep >= 0)
+                                        return "CURSOR — step " + (engine.cursorStep + 1) + "  (click again to clear)";
+                                    return "STOPPED — click a step to set cursor";
                                 }
                                 color: {
                                     if (engine.recording)
                                         return root.recColor;
                                     if (engine.playing)
                                         return root.playColor;
+                                    if (engine.cursorStep >= 0)
+                                        return "#0ea5e9";
                                     return root.textMuted;
                                 }
                                 font.pixelSize: 13
@@ -527,6 +531,7 @@ Window {
                                     stepData: engine.sequence.length > index ? engine.sequence[index] : null
                                     isCurrentStep: engine.currentStep === index
                                     isRecordingStep: engine.recording && engine.currentStep === index
+                                    isCursorStep: engine.cursorStep === index
                                     accentColor: root.accent
                                     accentLightColor: root.accentLight
                                     recColor: root.recColor
@@ -534,6 +539,15 @@ Window {
                                     stepBorderColor: root.stepBorder
                                     textPrimaryColor: root.textPrimary
                                     textMutedColor: root.textMuted
+                                    onDeleteStep: idx => engine.clearStep(idx)
+                                    onRerecordStep: idx => engine.recordStep(idx)
+                                    onCursorClicked: idx => {
+                                        // Toggle off if clicking the same cell again
+                                        if (engine.cursorStep === idx)
+                                            engine.setCursorStep(-1)
+                                        else
+                                            engine.setCursorStep(idx)
+                                    }
                                 }
                             }
                         }

@@ -205,9 +205,27 @@ void MidiEngine::setPassthroughEnabled(bool enabled) {
 
 void MidiEngine::startRecording() {
     if (m_recording) return;
-    clearSequence();
+
+    // Determine start step:
+    // 1. If a cursor has been set manually, use it.
+    // 2. Otherwise find the first empty step.
+    // 3. If all steps are filled, start from 0 (overwrite from beginning).
+    int startStep = m_cursorStep;
+    if (startStep < 0) {
+        startStep = 0;
+        for (int i = 0; i < m_maxSteps; ++i) {
+            if (m_sequence[i].isEmpty()) { startStep = i; break; }
+        }
+    }
+
+    // Consume the cursor so the next recording auto-detects again
+    if (m_cursorStep >= 0) {
+        m_cursorStep = -1;
+        emit cursorStepChanged();
+    }
+
     m_recording = true;
-    m_currentStep = 0;
+    m_currentStep = startStep;
     emit recordingChanged();
     emit currentStepChanged();
 }
@@ -216,6 +234,10 @@ void MidiEngine::stopRecording() {
     if (!m_recording) return;
     m_chordTimer->stop();
     m_recording = false;
+    if (m_stepRecordTarget >= 0) {
+        m_stepRecordTarget = -1;
+        emit stepRecordTargetChanged();
+    }
     emit recordingChanged();
 }
 
@@ -244,6 +266,37 @@ void MidiEngine::clearSequence() {
     for (auto& step : m_sequence)
         step.clear();
     emit sequenceChanged();
+}
+
+void MidiEngine::clearStep(int index) {
+    if (index < 0 || index >= m_maxSteps) return;
+    m_sequence[index].clear();
+    emit sequenceChanged();
+}
+
+// Arm a single step for re-recording: the next chord played will overwrite
+// that step, then recording stops automatically (playback is not interrupted).
+void MidiEngine::recordStep(int index) {
+    if (index < 0 || index >= m_maxSteps) return;
+    // Cancel any ongoing full recording first
+    if (m_recording) stopRecording();
+    // Clear the target step so the new notes replace it fully
+    m_sequence[index].clear();
+    m_stepRecordTarget = index;
+    m_currentStep = index;
+    m_recording = true;
+    emit stepRecordTargetChanged();
+    emit recordingChanged();
+    emit currentStepChanged();
+    emit sequenceChanged();
+}
+
+void MidiEngine::setCursorStep(int index) {
+    // index == -1 clears the manual cursor (revert to auto)
+    int clamped = (index < 0) ? -1 : qBound(0, index, m_maxSteps - 1);
+    if (m_cursorStep == clamped) return;
+    m_cursorStep = clamped;
+    emit cursorStepChanged();
 }
 
 // ── MIDI Learn ───────────────────────────────────────────────────────────────
@@ -391,6 +444,17 @@ void MidiEngine::processIncomingMidi(const std::vector<unsigned char>& msg) {
 // Called when chord window closes: advance to the next step (always on main thread)
 void MidiEngine::commitChordStep() {
     if (!m_recording) return;
+
+    // Single-step re-record mode: just stop recording after capturing one chord
+    if (m_stepRecordTarget >= 0) {
+        m_stepRecordTarget = -1;
+        m_recording = false;
+        emit stepRecordTargetChanged();
+        emit recordingChanged();
+        // Don't change m_currentStep — playback owns it now
+        return;
+    }
+
     m_currentStep++;
     emit currentStepChanged();
     if (m_currentStep >= m_maxSteps) {
