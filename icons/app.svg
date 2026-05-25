@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Background rounded square -->
+  <rect width="256" height="256" rx="48" ry="48" fill="#0d0d12"/>
+  <!-- Purple gradient circle/background accent -->
+  <circle cx="128" cy="128" r="96" fill="#7c3aed" opacity="0.15"/>
+  <!-- Loop arrow -->
+  <path d="M 80 128 A 48 48 0 1 1 128 176" stroke="#7c3aed" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <polygon points="118,164 128,184 138,164" fill="#7c3aed"/>
+  <!-- MIDI note bars -->
+  <rect x="96" y="104" width="12" height="32" rx="4" fill="#a78bfa" opacity="0.9"/>
+  <rect x="116" y="96" width="12" height="40" rx="4" fill="#a78bfa" opacity="0.9"/>
+  <rect x="136" y="108" width="12" height="28" rx="4" fill="#a78bfa" opacity="0.9"/>
+  <rect x="156" y="100" width="12" height="36" rx="4" fill="#a78bfa" opacity="0.9"/>
+</svg>

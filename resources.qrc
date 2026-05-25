@@ -8,5 +8,6 @@
         <file>qml/NoteVisualizer.qml</file>
         <file>qml/MidiLearnRow.qml</file>
         <file>qml/LoopButton.qml</file>
+        <file>icons/app.png</file>
     </qresource>
 </RCC>
