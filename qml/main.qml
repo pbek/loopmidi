@@ -139,7 +139,7 @@ Window {
                     anchors { fill: parent; margins: 16 }
                     spacing: 16
 
-                    SectionLabel { text: "MIDI PORTS" }
+                    SectionLabel { labelText: "MIDI PORTS" }
 
                     // Input port
                     Column {
@@ -221,7 +221,7 @@ Window {
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.stepBorder }
-                    SectionLabel { text: "TRANSPORT" }
+                    SectionLabel { labelText: "TRANSPORT" }
 
                     // BPM
                     Column {
@@ -240,9 +240,18 @@ Window {
                             }
                         }
                         Slider {
+                            id: bpmSlider
                             width: parent.width
-                            from: 40; to: 240; value: engine.bpm
-                            onValueChanged: engine.bpm = value
+                            from: 40; to: 240
+                            value: engine.bpm
+                            onMoved: engine.bpm = value
+                            Connections {
+                                target: engine
+                                function onBpmChanged() {
+                                    if (!bpmSlider.pressed)
+                                        bpmSlider.value = engine.bpm
+                                }
+                            }
                             background: Rectangle {
                                 x: parent.leftPadding; y: parent.topPadding + parent.availableHeight / 2 - height / 2
                                 width: parent.availableWidth; height: 4; radius: 2
@@ -264,7 +273,7 @@ Window {
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.stepBorder }
-                    SectionLabel { text: "MIDI LEARN" }
+                    SectionLabel { labelText: "MIDI LEARN" }
 
                     MidiLearnRow { label: "Record"; target: "record"; engine: engine }
                     MidiLearnRow { label: "Play";   target: "play";   engine: engine }
@@ -400,7 +409,7 @@ Window {
 
                         // Record
                         TransportButton {
-                            label: engine.recording ? "■ Stop Rec" : "● Record"
+                            label: engine.recording ? "Stop Rec" : "Record"
                             activeColor: root.recColor
                             active: engine.recording
                             iconText: engine.recording ? "■" : "●"
@@ -410,7 +419,7 @@ Window {
 
                         // Play / Stop
                         TransportButton {
-                            label: engine.playing ? "■ Stop" : "▶ Play"
+                            label: engine.playing ? "Stop" : "Play"
                             activeColor: root.playColor
                             active: engine.playing
                             iconText: engine.playing ? "■" : "▶"
@@ -420,7 +429,7 @@ Window {
 
                         // Clear
                         TransportButton {
-                            label: "✕ Clear"
+                            label: "Clear"
                             activeColor: "#f97316"
                             active: false
                             iconText: "✕"
@@ -429,6 +438,73 @@ Window {
                         }
 
                         Item { Layout.fillWidth: true }
+
+                        // BPM control in transport bar
+                        Column {
+                            spacing: 2
+                            Text {
+                                text: "BPM"
+                                font.pixelSize: 9
+                                font.letterSpacing: 2
+                                color: root.textMuted
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+                            Row {
+                                spacing: 4
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                // Decrease BPM
+                                Rectangle {
+                                    width: 22; height: 22; radius: 5
+                                    color: bpmMinusMouse.containsMouse ? "#2d2d3d" : root.cardBg
+                                    border.color: root.stepBorder
+                                    Text { anchors.centerIn: parent; text: "−"; font.pixelSize: 14; color: root.accentLight }
+                                    MouseArea {
+                                        id: bpmMinusMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: engine.bpm = Math.max(40, engine.bpm - 5)
+                                    }
+                                    Behavior on color { ColorAnimation { duration: 80 } }
+                                }
+                                // BPM value (scroll to adjust)
+                                Rectangle {
+                                    width: 52; height: 22; radius: 5
+                                    color: root.cardBg
+                                    border.color: root.stepBorder
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: Math.round(engine.bpm)
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        color: root.accentLight
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.SizeVerCursor
+                                        onWheel: (wheel) => {
+                                            var delta = wheel.angleDelta.y > 0 ? 1 : -1
+                                            engine.bpm = Math.max(40, Math.min(240, engine.bpm + delta))
+                                        }
+                                    }
+                                }
+                                // Increase BPM
+                                Rectangle {
+                                    width: 22; height: 22; radius: 5
+                                    color: bpmPlusMouse.containsMouse ? "#2d2d3d" : root.cardBg
+                                    border.color: root.stepBorder
+                                    Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 14; color: root.accentLight }
+                                    MouseArea {
+                                        id: bpmPlusMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: engine.bpm = Math.min(240, engine.bpm + 5)
+                                    }
+                                    Behavior on color { ColorAnimation { duration: 80 } }
+                                }
+                            }
+                        }
 
                         // Step counter
                         Column {
@@ -492,4 +568,5 @@ Window {
     Shortcut { sequence: "Space"; onActivated: engine.playing ? engine.stopPlayback() : engine.startPlayback() }
     Shortcut { sequence: "C"; onActivated: engine.clearSequence() }
     Shortcut { sequence: "Escape"; onActivated: { engine.stopRecording(); engine.stopPlayback() } }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: app.quit() }
 }

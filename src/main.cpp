@@ -15,7 +15,10 @@ int main(int argc, char* argv[]) {
 
     QQmlApplicationEngine engine;
 
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    // Expose quit slot so QML Shortcut can call it reliably
+    engine.rootContext()->setContextProperty("app", &app);
+
+    const QUrl url(QStringLiteral("qrc:/LoopMidiUI/qml/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
         &app, [url](QObject* obj, const QUrl& objUrl) {
             if (!obj && url == objUrl)

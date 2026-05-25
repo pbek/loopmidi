@@ -104,6 +104,7 @@ private:
     void sendNoteOn(int note, int velocity, int channel);
     void sendNoteOff(int note, int channel);
     void stopAllNotes();
+    void pollPorts();   // hotplug detection
     static void midiCallback(double deltatime, std::vector<unsigned char>* message, void* userData);
 
     std::unique_ptr<RtMidiIn>  m_midiIn;
@@ -118,6 +119,7 @@ private:
     double m_bpm = 120.0;
 
     QTimer* m_stepTimer = nullptr;
+    QTimer* m_hotplugTimer = nullptr;   // polls for device changes
     int m_lastPlayedNote = -1;
     int m_lastPlayedChannel = 0;
 

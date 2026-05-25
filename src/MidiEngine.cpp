@@ -21,6 +21,11 @@ MidiEngine::MidiEngine(QObject* parent) : QObject(parent) {
     m_stepTimer = new QTimer(this);
     connect(m_stepTimer, &QTimer::timeout, this, &MidiEngine::advanceStep);
 
+    m_hotplugTimer = new QTimer(this);
+    m_hotplugTimer->setInterval(1000); // poll every second
+    connect(m_hotplugTimer, &QTimer::timeout, this, &MidiEngine::pollPorts);
+    m_hotplugTimer->start();
+
     // Initialize sequence with 16 empty steps
     m_sequence.resize(m_maxSteps);
 
@@ -73,6 +78,56 @@ void MidiEngine::refreshPorts() {
         }
     } catch (...) {}
 
+    emit portsChanged();
+}
+
+void MidiEngine::pollPorts() {
+    // Build current port lists without emitting
+    QStringList newInputs, newOutputs;
+
+    if (m_midiIn) {
+        try {
+            int count = static_cast<int>(m_midiIn->getPortCount());
+            for (int i = 0; i < count; ++i)
+                newInputs << QString::fromStdString(m_midiIn->getPortName(i));
+        } catch (...) {}
+    }
+    try {
+        RtMidiOut tmpOut;
+        int count = static_cast<int>(tmpOut.getPortCount());
+        for (int i = 0; i < count; ++i)
+            newOutputs << QString::fromStdString(tmpOut.getPortName(i));
+    } catch (...) {}
+
+    if (newInputs == m_inputPorts && newOutputs == m_outputPorts)
+        return; // nothing changed
+
+    // If active input port disappeared, close it
+    if (m_selectedInputPort >= 0 && m_selectedInputPort < m_inputPorts.size()) {
+        QString activeName = m_inputPorts[m_selectedInputPort];
+        if (!newInputs.contains(activeName)) {
+            if (m_midiIn && m_midiIn->isPortOpen()) {
+                try { m_midiIn->closePort(); } catch (...) {}
+            }
+            m_selectedInputPort = -1;
+            emit selectedInputPortChanged();
+        }
+    }
+
+    // If active output port disappeared, close it
+    if (m_selectedOutputPort >= 0 && m_selectedOutputPort < m_outputPorts.size()) {
+        QString activeName = m_outputPorts[m_selectedOutputPort];
+        if (!newOutputs.contains(activeName)) {
+            if (m_midiOutHW && m_midiOutHW->isPortOpen()) {
+                try { m_midiOutHW->closePort(); } catch (...) {}
+            }
+            m_selectedOutputPort = -1;
+            emit selectedOutputPortChanged();
+        }
+    }
+
+    m_inputPorts  = newInputs;
+    m_outputPorts = newOutputs;
     emit portsChanged();
 }
 

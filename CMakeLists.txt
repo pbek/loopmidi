@@ -10,17 +10,38 @@ project(LoopMidi VERSION ${APP_VERSION} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(RTMIDI REQUIRED rtmidi)
 
+qt_policy(SET QTP0004 NEW)
+
 qt_add_executable(loopmidi
     src/main.cpp
     src/MidiEngine.cpp
     src/MidiEngine.h
-    resources.qrc
+)
+
+# Register QML module — embeds all QML files and icons as Qt resources with
+# proper absolute qrc:/ URLs, eliminating "qmlRegisterType requires absolute
+# URLs" warnings from the old .qrc approach.
+qt_add_qml_module(loopmidi
+    URI LoopMidiUI
+    VERSION 1.0
+    RESOURCE_PREFIX "/"
+    QML_FILES
+        qml/main.qml
+        qml/TransportButton.qml
+        qml/LoopButton.qml
+        qml/StatusPill.qml
+        qml/SectionLabel.qml
+        qml/NoteVisualizer.qml
+        qml/MidiLearnRow.qml
+        qml/StepCell.qml
+    RESOURCES
+        qml/qmldir
+        icons/app.png
 )
 
 target_compile_definitions(loopmidi PRIVATE

@@ -1,6 +1,7 @@
 import QtQuick 2.15
 
 Rectangle {
+    id: root
     property string label: ""
     property bool active: false
     property color activeColor: "#7c3aed"
@@ -19,31 +20,31 @@ Rectangle {
         spacing: 4
         Rectangle {
             width: 6; height: 6; radius: 3
-            color: active ? activeColor : "#334155"
+            color: root.active ? root.activeColor : "#334155"
             anchors.verticalCenter: parent.verticalCenter
 
             SequentialAnimation on opacity {
-                running: active
+                running: root.active
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.3; duration: 600 }
                 NumberAnimation { to: 1.0; duration: 600 }
             }
         }
         Text {
-            text: parent.parent.parent.label
+            text: root.label
             font.pixelSize: 9
             font.letterSpacing: 1
             font.bold: true
-            color: active ? "white" : "#475569"
+            color: root.active ? "white" : "#475569"
             anchors.verticalCenter: parent.verticalCenter
         }
     }
 
     MouseArea {
         anchors.fill: parent
-        cursorShape: clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
-        enabled: clickable
-        onClicked: parent.toggled()
+        cursorShape: root.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+        enabled: root.clickable
+        onClicked: root.toggled()
     }
 
     Behavior on color { ColorAnimation { duration: 200 } }
