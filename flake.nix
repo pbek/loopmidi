@@ -40,7 +40,7 @@
           meta = with pkgs.lib; {
             description = "MIDI loop sequencer: record 16 notes, loop them as a virtual MIDI device";
             homepage    = "https://github.com/yourusername/loopmidi";
-            license     = licenses.mit;
+            license     = licenses.gpl3Only;
             platforms   = platforms.linux;
             mainProgram = "loopmidi";
           };
