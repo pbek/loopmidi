@@ -42,7 +42,6 @@ qt_add_qml_module(
   qml/StatusPill.qml
   qml/SectionLabel.qml
   qml/NoteVisualizer.qml
-  qml/MidiLearnRow.qml
   qml/StepCell.qml
   RESOURCES
   qml/qmldir

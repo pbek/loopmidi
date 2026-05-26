@@ -12,7 +12,7 @@
 | **Virtual MIDI output** | Exposes "LoopMidi Output" — connect Surge-XT or any app to it                      |
 | **Passthrough**         | Notes from your keyboard are forwarded live to the virtual port while playing/idle |
 | **Adjustable BPM**      | 40 – 240 BPM slider for playback speed                                             |
-| **MIDI Learn**          | Bind Record / Play / Stop / Clear to any CC knob or pad on your controller         |
+| **MIDI Learn**          | Bind transport buttons to any CC knob or pad from each button's right-click menu   |
 | **Keyboard shortcuts**  | `R` record, `Space` play/stop, `C` clear, `Esc` stop all                           |
 | **Beautiful dark UI**   | Step grid with velocity bars, live note visualizer, animated indicators            |
 
@@ -52,9 +52,9 @@ cmake --build build -j$(nproc)
 
 ### MIDI Learn (MiniLab 3 pads / knobs)
 
-1. Click the `◉` button next to "Record", "Play", "Stop", or "Clear".
+1. Right-click a learnable transport button and choose `MIDI Learn`.
 2. Move a knob or press a pad on the MiniLab 3.
-3. The CC number is captured and shown. That control now triggers the action.
+3. The CC or note is captured. That control now triggers the action.
 
 ---
 

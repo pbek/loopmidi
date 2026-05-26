@@ -395,41 +395,6 @@ Window {
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: root.stepBorder
-                    }
-                    SectionLabel {
-                        labelText: "MIDI LEARN"
-                    }
-
-                    MidiLearnRow {
-                        label: "Record"
-                        target: "record"
-                        engine: engine
-                    }
-                    MidiLearnRow {
-                        label: "Play"
-                        target: "play"
-                        engine: engine
-                    }
-                    MidiLearnRow {
-                        label: "Stop"
-                        target: "stop"
-                        engine: engine
-                    }
-                    MidiLearnRow {
-                        label: "Clear"
-                        target: "clear"
-                        engine: engine
-                    }
-                    MidiLearnRow {
-                        label: "Tap"
-                        target: "tapTempo"
-                        engine: engine
-                    }
-
                     Item {
                         Layout.fillHeight: true
                     }
@@ -620,6 +585,8 @@ Window {
                             active: engine.recording
                             iconText: engine.recording ? "■" : "●"
                             shortcut: "R"
+                            midiLearnTarget: engine.recording ? "stop" : "record"
+                            midiLearnEngine: engine
                             onClicked: engine.recording ? engine.stopRecording() : engine.startRecording()
                         }
 
@@ -630,6 +597,8 @@ Window {
                             active: engine.playing
                             iconText: engine.playing ? "■" : "▶"
                             shortcut: "Space"
+                            midiLearnTarget: engine.playing ? "stop" : "play"
+                            midiLearnEngine: engine
                             onClicked: engine.playing ? engine.stopPlayback() : engine.startPlayback()
                         }
 
@@ -640,6 +609,8 @@ Window {
                             active: false
                             iconText: "✕"
                             shortcut: "C"
+                            midiLearnTarget: "clear"
+                            midiLearnEngine: engine
                             onClicked: engine.clearSequence()
                         }
 
@@ -649,6 +620,8 @@ Window {
                             activeColor: "#0ea5e9"
                             active: false
                             iconText: "♩"
+                            midiLearnTarget: "tapTempo"
+                            midiLearnEngine: engine
                             onClicked: engine.tapTempo()
                         }
 

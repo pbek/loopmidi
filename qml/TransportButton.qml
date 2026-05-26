@@ -8,14 +8,19 @@ Rectangle {
     property color activeColor: "#7c3aed"
     property bool active: false
     property string shortcut: ""
+    property string midiLearnTarget: ""
+    property var midiLearnEngine: null
     signal clicked
+
+    readonly property bool canMidiLearn: midiLearnTarget.length > 0 && midiLearnEngine !== null
+    readonly property bool midiLearning: canMidiLearn && midiLearnEngine.midiLearnActive && midiLearnEngine.midiLearnTarget === midiLearnTarget
 
     implicitWidth: 130
     implicitHeight: 44
     radius: 10
     color: active ? Qt.rgba(activeColor.r, activeColor.g, activeColor.b, 0.2) : "#1a1a2e"
-    border.color: active ? activeColor : "#2d2d3d"
-    border.width: active ? 2 : 1
+    border.color: midiLearning ? "#f59e0b" : (active ? activeColor : "#2d2d3d")
+    border.width: (active || midiLearning) ? 2 : 1
 
     Row {
         anchors.centerIn: parent
@@ -37,10 +42,50 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
-        onPressed: root.scale = 0.96
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton && root.canMidiLearn) {
+                midiLearnMenu.popup();
+            } else if (mouse.button === Qt.LeftButton) {
+                root.clicked();
+            }
+        }
+        onPressed: mouse => {
+            if (mouse.button === Qt.LeftButton)
+                root.scale = 0.96;
+        }
         onReleased: root.scale = 1.0
+        onCanceled: root.scale = 1.0
+    }
+
+    Menu {
+        id: midiLearnMenu
+
+        background: Rectangle {
+            color: "#1a1a2e"
+            border.color: "#2d2d3d"
+            radius: 8
+        }
+
+        MenuItem {
+            text: "MIDI Learn"
+            contentItem: Text {
+                text: parent.text
+                color: "#a78bfa"
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 12
+            }
+            background: Rectangle {
+                color: parent.hovered ? "#2d2d3d" : "transparent"
+                radius: 6
+            }
+            onTriggered: {
+                if (root.canMidiLearn)
+                    root.midiLearnEngine.startMidiLearn(root.midiLearnTarget);
+            }
+        }
     }
 
     Behavior on scale {
