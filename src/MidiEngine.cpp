@@ -1,9 +1,12 @@
 #include "MidiEngine.h"
+#include <QDateTime>
 #include <QDebug>
 #include <QMutexLocker>
 
 static const int kChordWindowMs =
     30; // notes within this window are grouped into one step
+static const int kTapTempoResetMs = 2000;
+static const int kTapTempoMaxTaps = 4;
 
 static void midiCallbackStatic(double deltatime,
                                std::vector<unsigned char> *message,
@@ -228,6 +231,7 @@ void MidiEngine::setSelectedOutputPort(int port) {
 // ── Transport & BPM ──────────────────────────────────────────────────────────
 
 void MidiEngine::setBpm(double bpm) {
+  bpm = qBound(40.0, bpm, 240.0);
   if (qFuzzyCompare(m_bpm, bpm))
     return;
   m_bpm = bpm;
@@ -353,6 +357,32 @@ void MidiEngine::setCursorStep(int index) {
   emit cursorStepChanged();
 }
 
+void MidiEngine::tapTempo() {
+  const qint64 now = QDateTime::currentMSecsSinceEpoch();
+  if (!m_tapTempoTimes.isEmpty() &&
+      now - m_tapTempoTimes.last() > kTapTempoResetMs) {
+    m_tapTempoTimes.clear();
+  }
+
+  m_tapTempoTimes.append(now);
+  while (m_tapTempoTimes.size() > kTapTempoMaxTaps)
+    m_tapTempoTimes.removeFirst();
+
+  if (m_tapTempoTimes.size() < 2)
+    return;
+
+  qint64 totalInterval = 0;
+  for (int i = 1; i < m_tapTempoTimes.size(); ++i)
+    totalInterval += m_tapTempoTimes[i] - m_tapTempoTimes[i - 1];
+
+  const double averageInterval =
+      static_cast<double>(totalInterval) / (m_tapTempoTimes.size() - 1);
+  if (averageInterval <= 0.0)
+    return;
+
+  setBpm(60000.0 / averageInterval);
+}
+
 // ── MIDI Learn ───────────────────────────────────────────────────────────────
 
 void MidiEngine::startMidiLearn(const QString &target) {
@@ -365,6 +395,8 @@ void MidiEngine::startMidiLearn(const QString &target) {
     m_midiLearnTargetType = MidiLearnTarget::Stop;
   else if (target == "clear")
     m_midiLearnTargetType = MidiLearnTarget::Clear;
+  else if (target == "tapTempo")
+    m_midiLearnTargetType = MidiLearnTarget::TapTempo;
   else
     m_midiLearnTargetType = MidiLearnTarget::None;
 
@@ -381,19 +413,27 @@ void MidiEngine::cancelMidiLearn() {
   emit midiLearnTargetChanged();
 }
 
-void MidiEngine::handleMidiLearn(int ccOrNote, bool /*isCC*/) {
+void MidiEngine::handleMidiLearn(int ccOrNote, bool isCC) {
   switch (m_midiLearnTargetType) {
   case MidiLearnTarget::Record:
     m_recordButton = ccOrNote;
+    m_recordButtonIsNote = !isCC;
     break;
   case MidiLearnTarget::Play:
     m_playButton = ccOrNote;
+    m_playButtonIsNote = !isCC;
     break;
   case MidiLearnTarget::Stop:
     m_stopButton = ccOrNote;
+    m_stopButtonIsNote = !isCC;
     break;
   case MidiLearnTarget::Clear:
     m_clearButton = ccOrNote;
+    m_clearButtonIsNote = !isCC;
+    break;
+  case MidiLearnTarget::TapTempo:
+    m_tapTempoButton = ccOrNote;
+    m_tapTempoButtonIsNote = !isCC;
     break;
   default:
     break;
@@ -405,6 +445,59 @@ void MidiEngine::handleMidiLearn(int ccOrNote, bool /*isCC*/) {
   emit midiLearnActiveChanged();
   emit midiLearnTargetChanged();
   saveSettings();
+}
+
+bool MidiEngine::triggerBoundAction(int value, bool isNote) {
+  if (value == m_recordButton && m_recordButton >= 0 &&
+      isNote == m_recordButtonIsNote) {
+    QMetaObject::invokeMethod(
+        this,
+        [this]() {
+          if (!m_recording)
+            startRecording();
+          else
+            stopRecording();
+        },
+        Qt::QueuedConnection);
+    return true;
+  }
+  if (value == m_playButton && m_playButton >= 0 &&
+      isNote == m_playButtonIsNote) {
+    QMetaObject::invokeMethod(
+        this,
+        [this]() {
+          if (!m_playing)
+            startPlayback();
+          else
+            stopPlayback();
+        },
+        Qt::QueuedConnection);
+    return true;
+  }
+  if (value == m_stopButton && m_stopButton >= 0 &&
+      isNote == m_stopButtonIsNote) {
+    QMetaObject::invokeMethod(
+        this,
+        [this]() {
+          stopPlayback();
+          stopRecording();
+        },
+        Qt::QueuedConnection);
+    return true;
+  }
+  if (value == m_clearButton && m_clearButton >= 0 &&
+      isNote == m_clearButtonIsNote) {
+    QMetaObject::invokeMethod(this, &MidiEngine::clearSequence,
+                              Qt::QueuedConnection);
+    return true;
+  }
+  if (value == m_tapTempoButton && m_tapTempoButton >= 0 &&
+      isNote == m_tapTempoButtonIsNote) {
+    QMetaObject::invokeMethod(this, &MidiEngine::tapTempo,
+                              Qt::QueuedConnection);
+    return true;
+  }
+  return false;
 }
 
 // ── Sequence QVariantList (read by QML) ──────────────────────────────────────
@@ -461,39 +554,15 @@ void MidiEngine::processIncomingMidi(const std::vector<unsigned char> &msg) {
     return;
   }
 
-  // Control bindings (CC)
+  // Control bindings (CC buttons and note/pad buttons)
   if (isCC) {
     int cc = static_cast<int>(data1);
-    if (cc == m_recordButton && m_recordButton >= 0) {
-      if (data2 > 0) {
-        if (!m_recording)
-          startRecording();
-        else
-          stopRecording();
-      }
+    if (data2 > 0 && triggerBoundAction(cc, false))
       return;
-    }
-    if (cc == m_playButton && m_playButton >= 0) {
-      if (data2 > 0) {
-        if (!m_playing)
-          startPlayback();
-        else
-          stopPlayback();
-      }
+  } else if (isNoteOn) {
+    int note = static_cast<int>(data1);
+    if (triggerBoundAction(note, true))
       return;
-    }
-    if (cc == m_stopButton && m_stopButton >= 0) {
-      if (data2 > 0) {
-        stopPlayback();
-        stopRecording();
-      }
-      return;
-    }
-    if (cc == m_clearButton && m_clearButton >= 0) {
-      if (data2 > 0)
-        clearSequence();
-      return;
-    }
   }
 
   // Passthrough to virtual output
@@ -632,6 +701,12 @@ void MidiEngine::loadSettings() {
   m_playButton = s.value("playButton", -1).toInt();
   m_stopButton = s.value("stopButton", -1).toInt();
   m_clearButton = s.value("clearButton", -1).toInt();
+  m_tapTempoButton = s.value("tapTempoButton", -1).toInt();
+  m_recordButtonIsNote = s.value("recordButtonIsNote", false).toBool();
+  m_playButtonIsNote = s.value("playButtonIsNote", false).toBool();
+  m_stopButtonIsNote = s.value("stopButtonIsNote", false).toBool();
+  m_clearButtonIsNote = s.value("clearButtonIsNote", false).toBool();
+  m_tapTempoButtonIsNote = s.value("tapTempoButtonIsNote", false).toBool();
   if (m_bpm < 40.0)
     m_bpm = 40.0;
   if (m_bpm > 240.0)
@@ -649,6 +724,12 @@ void MidiEngine::saveSettings() const {
   s.setValue("playButton", m_playButton);
   s.setValue("stopButton", m_stopButton);
   s.setValue("clearButton", m_clearButton);
+  s.setValue("tapTempoButton", m_tapTempoButton);
+  s.setValue("recordButtonIsNote", m_recordButtonIsNote);
+  s.setValue("playButtonIsNote", m_playButtonIsNote);
+  s.setValue("stopButtonIsNote", m_stopButtonIsNote);
+  s.setValue("clearButtonIsNote", m_clearButtonIsNote);
+  s.setValue("tapTempoButtonIsNote", m_tapTempoButtonIsNote);
 }
 
 void MidiEngine::tryRestoreSavedPorts() {

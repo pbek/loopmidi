@@ -424,6 +424,11 @@ Window {
                         target: "clear"
                         engine: engine
                     }
+                    MidiLearnRow {
+                        label: "Tap"
+                        target: "tapTempo"
+                        engine: engine
+                    }
 
                     Item {
                         Layout.fillHeight: true
@@ -636,6 +641,15 @@ Window {
                             iconText: "✕"
                             shortcut: "C"
                             onClicked: engine.clearSequence()
+                        }
+
+                        // Tap Tempo
+                        TransportButton {
+                            label: "Tap BPM"
+                            activeColor: "#0ea5e9"
+                            active: false
+                            iconText: "♩"
+                            onClicked: engine.tapTempo()
                         }
 
                         Item {

@@ -37,7 +37,25 @@ RowLayout {
                 return engine.stopButton;
             if (target === "clear")
                 return engine.clearButton;
+            if (target === "tapTempo")
+                return engine.tapTempoButton;
             return -1;
+        }
+
+        readonly property bool bindingIsNote: {
+            if (!engine)
+                return false;
+            if (target === "record")
+                return engine.recordButtonIsNote;
+            if (target === "play")
+                return engine.playButtonIsNote;
+            if (target === "stop")
+                return engine.stopButtonIsNote;
+            if (target === "clear")
+                return engine.clearButtonIsNote;
+            if (target === "tapTempo")
+                return engine.tapTempoButtonIsNote;
+            return false;
         }
 
         Text {
@@ -49,7 +67,7 @@ RowLayout {
             text: {
                 if (parent.isLearning)
                     return "▶ move a knob/button...";
-                return parent.binding >= 0 ? "CC " + parent.binding : "—";
+                return parent.binding >= 0 ? (parent.bindingIsNote ? "Note " : "CC ") + parent.binding : "—";
             }
             color: parent.isLearning ? "#f59e0b" : (parent.binding >= 0 ? "#a78bfa" : "#475569")
             font.pixelSize: 10

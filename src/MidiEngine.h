@@ -21,7 +21,7 @@ struct NoteEvent {
 using ChordStep = QVector<NoteEvent>;
 
 struct MidiLearnTarget {
-  enum Type { None, Record, Play, Stop, Clear };
+  enum Type { None, Record, Play, Stop, Clear, TapTempo };
   Type type = None;
 };
 
@@ -49,6 +49,17 @@ class MidiEngine : public QObject {
   Q_PROPERTY(int playButton READ playButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int stopButton READ stopButton NOTIFY midiBindingsChanged)
   Q_PROPERTY(int clearButton READ clearButton NOTIFY midiBindingsChanged)
+  Q_PROPERTY(int tapTempoButton READ tapTempoButton NOTIFY midiBindingsChanged)
+  Q_PROPERTY(bool recordButtonIsNote READ recordButtonIsNote NOTIFY
+                 midiBindingsChanged)
+  Q_PROPERTY(
+      bool playButtonIsNote READ playButtonIsNote NOTIFY midiBindingsChanged)
+  Q_PROPERTY(
+      bool stopButtonIsNote READ stopButtonIsNote NOTIFY midiBindingsChanged)
+  Q_PROPERTY(
+      bool clearButtonIsNote READ clearButtonIsNote NOTIFY midiBindingsChanged)
+  Q_PROPERTY(bool tapTempoButtonIsNote READ tapTempoButtonIsNote NOTIFY
+                 midiBindingsChanged)
   Q_PROPERTY(
       int stepRecordTarget READ stepRecordTarget NOTIFY stepRecordTargetChanged)
   Q_PROPERTY(int cursorStep READ cursorStep NOTIFY cursorStepChanged)
@@ -73,6 +84,12 @@ public:
   int playButton() const { return m_playButton; }
   int stopButton() const { return m_stopButton; }
   int clearButton() const { return m_clearButton; }
+  int tapTempoButton() const { return m_tapTempoButton; }
+  bool recordButtonIsNote() const { return m_recordButtonIsNote; }
+  bool playButtonIsNote() const { return m_playButtonIsNote; }
+  bool stopButtonIsNote() const { return m_stopButtonIsNote; }
+  bool clearButtonIsNote() const { return m_clearButtonIsNote; }
+  bool tapTempoButtonIsNote() const { return m_tapTempoButtonIsNote; }
   int stepRecordTarget() const { return m_stepRecordTarget; }
   int cursorStep() const { return m_cursorStep; }
 
@@ -90,6 +107,7 @@ public slots:
   void clearStep(int index);
   void recordStep(int index);
   void setCursorStep(int index);
+  void tapTempo();
   void refreshPorts();
   void startMidiLearn(const QString &target);
   void cancelMidiLearn();
@@ -129,6 +147,7 @@ private:
   void loadSettings();
   void saveSettings() const;
   void tryRestoreSavedPorts();
+  bool triggerBoundAction(int value, bool isNote);
   static void midiCallback(double deltatime,
                            std::vector<unsigned char> *message, void *userData);
 
@@ -170,6 +189,14 @@ private:
   int m_playButton = -1;
   int m_stopButton = -1;
   int m_clearButton = -1;
+  int m_tapTempoButton = -1;
+  bool m_recordButtonIsNote = false;
+  bool m_playButtonIsNote = false;
+  bool m_stopButtonIsNote = false;
+  bool m_clearButtonIsNote = false;
+  bool m_tapTempoButtonIsNote = false;
+
+  QVector<qint64> m_tapTempoTimes;
 
   // Single-step re-record target (-1 = none)
   int m_stepRecordTarget = -1;
