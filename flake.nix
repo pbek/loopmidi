@@ -18,7 +18,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
 
         # ── Single source of truth for the version ──────────────────────────
-        version = "0.2.0";
+        version = "0.3.0";
 
         loopmidi = pkgs.stdenv.mkDerivation {
           pname = "loopmidi";

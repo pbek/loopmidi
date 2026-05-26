@@ -33,7 +33,7 @@ nix build github:yourusername/loopmidi
 
 ```bash
 nix develop
-cmake -B build -DAPP_VERSION=0.1.0
+cmake -B build -DAPP_VERSION=0.3.0
 cmake --build build -j$(nproc)
 ./build/loopmidi
 ```
@@ -80,7 +80,7 @@ Arturia MiniLab 3
 Requirements: Qt 6, rtmidi, ALSA (Linux), CMake ≥ 3.20.
 
 ```bash
-cmake -B build -DAPP_VERSION=0.1.0
+cmake -B build -DAPP_VERSION=0.3.0
 cmake --build build -j$(nproc)
 ```
 
