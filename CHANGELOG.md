@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Project save/load support via `.loopmidi` JSON files, including project name, BPM, record mode, active track, and all sequenced notes across all tracks.
 - New projects now default to a dated name, and Save As pre-fills the filename from the current project name.
+- Per-track MIDI channel routing lets each track target a separate instrument in Carla, a DAW, or another plugin host.
 
 ---
 

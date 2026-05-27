@@ -9,9 +9,9 @@ import LoopMidi 1.0
 Window {
     id: root
     visible: true
-    width: 1000
+    width: 1120
     height: 720
-    minimumWidth: 860
+    minimumWidth: 980
     minimumHeight: 620
     title: "LoopMidi"
     color: "#0d0d12"
@@ -661,6 +661,103 @@ Window {
                                                 duration: 150
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "MIDI CH"
+                                font.pixelSize: 10
+                                font.letterSpacing: 2
+                                color: root.textMuted
+                            }
+
+                            SpinBox {
+                                id: midiChannelSpinBox
+                                from: 1
+                                to: 16
+                                value: engine.activeTrackMidiChannel
+                                editable: true
+                                Layout.preferredWidth: 92
+                                onValueModified: engine.activeTrackMidiChannel = value
+                                contentItem: TextInput {
+                                    text: midiChannelSpinBox.textFromValue(midiChannelSpinBox.value, midiChannelSpinBox.locale)
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: root.textPrimary
+                                    selectionColor: root.accent
+                                    selectedTextColor: "white"
+                                    horizontalAlignment: Qt.AlignHCenter
+                                    verticalAlignment: Qt.AlignVCenter
+                                    readOnly: !midiChannelSpinBox.editable
+                                    validator: midiChannelSpinBox.validator
+                                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                    leftPadding: 26
+                                    rightPadding: 26
+                                }
+                                up.indicator: Rectangle {
+                                    x: midiChannelSpinBox.width - width
+                                    width: 28
+                                    height: midiChannelSpinBox.height
+                                    radius: 7
+                                    color: upMouseArea.pressed ? Qt.rgba(0.49, 0.23, 0.93, 0.35) : "transparent"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "+"
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                        color: parent.enabled ? root.accentLight : root.textMuted
+                                    }
+
+                                    MouseArea {
+                                        id: upMouseArea
+                                        anchors.fill: parent
+                                        enabled: midiChannelSpinBox.value < midiChannelSpinBox.to
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            midiChannelSpinBox.value = Math.min(midiChannelSpinBox.to, midiChannelSpinBox.value + 1);
+                                            engine.activeTrackMidiChannel = midiChannelSpinBox.value;
+                                        }
+                                    }
+                                }
+                                down.indicator: Rectangle {
+                                    width: 28
+                                    height: midiChannelSpinBox.height
+                                    radius: 7
+                                    color: downMouseArea.pressed ? Qt.rgba(0.49, 0.23, 0.93, 0.35) : "transparent"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "-"
+                                        font.pixelSize: 16
+                                        font.bold: true
+                                        color: parent.enabled ? root.accentLight : root.textMuted
+                                    }
+
+                                    MouseArea {
+                                        id: downMouseArea
+                                        anchors.fill: parent
+                                        enabled: midiChannelSpinBox.value > midiChannelSpinBox.from
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            midiChannelSpinBox.value = Math.max(midiChannelSpinBox.from, midiChannelSpinBox.value - 1);
+                                            engine.activeTrackMidiChannel = midiChannelSpinBox.value;
+                                        }
+                                    }
+                                }
+                                background: Rectangle {
+                                    color: root.cardBg
+                                    border.color: midiChannelSpinBox.activeFocus ? root.accentLight : root.stepBorder
+                                    border.width: midiChannelSpinBox.activeFocus ? 2 : 1
+                                    radius: 7
+                                }
+                                Connections {
+                                    target: engine
+                                    function onActiveTrackMidiChannelChanged() {
+                                        midiChannelSpinBox.value = engine.activeTrackMidiChannel;
                                     }
                                 }
                             }

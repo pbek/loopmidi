@@ -56,6 +56,9 @@ MidiEngine::MidiEngine(QObject *parent) : QObject(parent) {
   m_tracks.resize(m_trackCount);
   for (auto &track : m_tracks)
     track.resize(m_maxSteps);
+  m_trackMidiChannels.resize(m_trackCount);
+  for (int i = 0; i < m_trackCount; ++i)
+    m_trackMidiChannels[i] = qMin(i, 15);
 
   setupVirtualOutput();
   loadSettings();
@@ -285,7 +288,25 @@ void MidiEngine::setActiveTrack(int track) {
   if (m_recording)
     stopRecording();
   emit activeTrackChanged();
+  emit activeTrackMidiChannelChanged();
   emit sequenceChanged();
+}
+
+int MidiEngine::activeTrackMidiChannel() const {
+  if (m_activeTrack < 0 || m_activeTrack >= m_trackMidiChannels.size())
+    return 1;
+  return m_trackMidiChannels[m_activeTrack] + 1;
+}
+
+void MidiEngine::setActiveTrackMidiChannel(int channel) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_trackMidiChannels.size())
+    return;
+  const int nextChannel = qBound(1, channel, 16) - 1;
+  if (m_trackMidiChannels[m_activeTrack] == nextChannel)
+    return;
+  m_trackMidiChannels[m_activeTrack] = nextChannel;
+  emit activeTrackMidiChannelChanged();
+  saveSettings();
 }
 
 void MidiEngine::setRecordAllBeats(bool enabled) {
@@ -434,6 +455,11 @@ bool MidiEngine::saveProject(const QString &filePath) {
   root["trackCount"] = m_trackCount;
   root["stepsPerTrack"] = m_maxSteps;
 
+  QJsonArray trackMidiChannels;
+  for (int channel : m_trackMidiChannels)
+    trackMidiChannels.append(channel + 1);
+  root["trackMidiChannels"] = trackMidiChannels;
+
   QJsonArray tracks;
   {
     QMutexLocker locker(&m_mutex);
@@ -511,6 +537,19 @@ bool MidiEngine::loadProject(const QString &filePath) {
   for (auto &track : loadedTracks)
     track.resize(m_maxSteps);
 
+  QVector<int> loadedTrackMidiChannels(m_trackCount);
+  for (int i = 0; i < m_trackCount; ++i)
+    loadedTrackMidiChannels[i] = qMin(i, 15);
+
+  const QJsonArray trackMidiChannelsJson =
+      root.value("trackMidiChannels").toArray();
+  for (int i = 0;
+       i < qMin(m_trackCount, static_cast<int>(trackMidiChannelsJson.size()));
+       ++i) {
+    loadedTrackMidiChannels[i] =
+        qBound(1, trackMidiChannelsJson[i].toInt(i + 1), 16) - 1;
+  }
+
   for (int trackIndex = 0;
        trackIndex < qMin(m_trackCount, static_cast<int>(tracksJson.size()));
        ++trackIndex) {
@@ -535,9 +574,13 @@ bool MidiEngine::loadProject(const QString &filePath) {
   m_chordTimer->stop();
   stopAllNotes();
 
+  const bool activeTrackMidiChannelChangedNow =
+      m_trackMidiChannels != loadedTrackMidiChannels;
+
   {
     QMutexLocker locker(&m_mutex);
     m_tracks = loadedTracks;
+    m_trackMidiChannels = loadedTrackMidiChannels;
   }
 
   const QString loadedName = root.value("name").toString(defaultProjectName());
@@ -569,6 +612,8 @@ bool MidiEngine::loadProject(const QString &filePath) {
   emit bpmChanged();
   if (activeTrackChangedNow)
     emit activeTrackChanged();
+  if (activeTrackChangedNow || activeTrackMidiChannelChangedNow)
+    emit activeTrackMidiChannelChanged();
   if (recordAllBeatsChangedNow)
     emit recordAllBeatsChanged();
   if (cursorChanged)
@@ -912,11 +957,16 @@ void MidiEngine::advanceStep() {
     sendNoteOff(ev.note, ev.channel);
   m_activePlaybackNotes.clear();
 
-  for (const auto &track : m_tracks) {
+  for (int trackIndex = 0; trackIndex < m_tracks.size(); ++trackIndex) {
+    const auto &track = m_tracks[trackIndex];
     const ChordStep &step = track[playbackStep];
+    const int outputChannel = trackIndex < m_trackMidiChannels.size()
+                                  ? m_trackMidiChannels[trackIndex]
+                                  : qMin(trackIndex, 15);
     for (const auto &ev : step) {
-      sendNoteOn(ev.note, ev.velocity, ev.channel);
-      m_activePlaybackNotes.append(ev);
+      sendNoteOn(ev.note, ev.velocity, outputChannel);
+      m_activePlaybackNotes.append(
+          NoteEvent{ev.note, ev.velocity, outputChannel});
     }
   }
 
@@ -985,6 +1035,13 @@ void MidiEngine::loadSettings() {
   m_clearButton = s.value("clearButton", -1).toInt();
   m_tapTempoButton = s.value("tapTempoButton", -1).toInt();
   m_recordAllBeats = s.value("recordAllBeats", true).toBool();
+  const QVariantList trackMidiChannels = s.value("trackMidiChannels").toList();
+  for (int i = 0;
+       i < qMin(m_trackCount, static_cast<int>(trackMidiChannels.size()));
+       ++i) {
+    const int channel = trackMidiChannels[i].toInt();
+    m_trackMidiChannels[i] = qBound(1, channel > 0 ? channel : i + 1, 16) - 1;
+  }
   m_recordButtonIsNote = s.value("recordButtonIsNote", false).toBool();
   m_playButtonIsNote = s.value("playButtonIsNote", false).toBool();
   m_stopButtonIsNote = s.value("stopButtonIsNote", false).toBool();
@@ -1009,6 +1066,10 @@ void MidiEngine::saveSettings() const {
   s.setValue("clearButton", m_clearButton);
   s.setValue("tapTempoButton", m_tapTempoButton);
   s.setValue("recordAllBeats", m_recordAllBeats);
+  QVariantList trackMidiChannels;
+  for (int channel : m_trackMidiChannels)
+    trackMidiChannels << channel + 1;
+  s.setValue("trackMidiChannels", trackMidiChannels);
   s.setValue("recordButtonIsNote", m_recordButtonIsNote);
   s.setValue("playButtonIsNote", m_playButtonIsNote);
   s.setValue("stopButtonIsNote", m_stopButtonIsNote);

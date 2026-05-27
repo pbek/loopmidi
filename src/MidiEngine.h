@@ -36,6 +36,8 @@ class MidiEngine : public QObject {
   Q_PROPERTY(int trackCount READ trackCount CONSTANT)
   Q_PROPERTY(int activeTrack READ activeTrack WRITE setActiveTrack NOTIFY
                  activeTrackChanged)
+  Q_PROPERTY(int activeTrackMidiChannel READ activeTrackMidiChannel WRITE
+                 setActiveTrackMidiChannel NOTIFY activeTrackMidiChannelChanged)
   Q_PROPERTY(bool recordAllBeats READ recordAllBeats WRITE setRecordAllBeats
                  NOTIFY recordAllBeatsChanged)
   Q_PROPERTY(QStringList inputPorts READ inputPorts NOTIFY portsChanged)
@@ -87,6 +89,7 @@ public:
   QVariantList sequence() const;
   int trackCount() const { return m_trackCount; }
   int activeTrack() const { return m_activeTrack; }
+  int activeTrackMidiChannel() const;
   bool recordAllBeats() const { return m_recordAllBeats; }
   QStringList inputPorts() const { return m_inputPorts; }
   QStringList outputPorts() const { return m_outputPorts; }
@@ -118,6 +121,7 @@ public:
   void setProjectName(const QString &name);
   void setPassthroughEnabled(bool enabled);
   void setActiveTrack(int track);
+  void setActiveTrackMidiChannel(int channel);
   void setRecordAllBeats(bool enabled);
 
 public slots:
@@ -143,6 +147,7 @@ signals:
   void recordingStepChanged();
   void sequenceChanged();
   void activeTrackChanged();
+  void activeTrackMidiChannelChanged();
   void recordAllBeatsChanged();
   void portsChanged();
   void selectedInputPortChanged();
@@ -189,6 +194,7 @@ private:
 
   // Tracks: each track has m_maxSteps chord steps.
   QVector<QVector<ChordStep>> m_tracks;
+  QVector<int> m_trackMidiChannels;
   int m_trackCount = 4;
   int m_activeTrack = 0;
   int m_maxSteps = 16;
