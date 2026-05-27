@@ -97,6 +97,15 @@ Window {
         saveProjectDialog.open();
     }
 
+    function selectedPluginIndex() {
+        for (var i = 0; i < engine.availablePlugins.length; ++i) {
+            var plugin = engine.availablePlugins[i];
+            if (plugin.pluginId === engine.activeInstrumentPluginId && plugin.pluginFormat === engine.activeInstrumentFormat)
+                return i;
+        }
+        return -1;
+    }
+
     FileDialog {
         id: loadProjectDialog
         title: "Load LoopMidi Project"
@@ -764,6 +773,241 @@ Window {
 
                             Item {
                                 Layout.fillWidth: true
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 74
+                            radius: 10
+                            color: root.cardBg
+                            border.color: root.stepBorder
+
+                            RowLayout {
+                                anchors {
+                                    fill: parent
+                                    margins: 10
+                                }
+                                spacing: 10
+
+                                Column {
+                                    spacing: 3
+                                    Layout.preferredWidth: 140
+                                    Text {
+                                        text: "INSTRUMENT SLOT"
+                                        font.pixelSize: 10
+                                        font.letterSpacing: 2
+                                        color: root.textMuted
+                                    }
+                                    Text {
+                                        text: "Track " + (engine.activeTrack + 1)
+                                        font.pixelSize: 18
+                                        font.bold: true
+                                        color: root.accentLight
+                                    }
+                                }
+
+                                Column {
+                                    spacing: 5
+                                    Layout.preferredWidth: 240
+                                    Text {
+                                        text: "Plugin"
+                                        font.pixelSize: 10
+                                        color: root.textMuted
+                                    }
+                                    ComboBox {
+                                        id: instrumentPluginCombo
+                                        width: parent.width
+                                        model: engine.availablePlugins
+                                        textRole: "label"
+                                        currentIndex: root.selectedPluginIndex()
+                                        displayText: currentIndex >= 0 ? currentText : engine.activeInstrumentPluginId
+                                        onActivated: engine.setActiveInstrumentFromAvailablePlugin(currentIndex)
+                                        background: Rectangle {
+                                            color: root.panelBg
+                                            border.color: instrumentPluginCombo.activeFocus ? root.accentLight : root.stepBorder
+                                            radius: 6
+                                        }
+                                        contentItem: Text {
+                                            leftPadding: 10
+                                            rightPadding: 10
+                                            text: parent.displayText.length > 0 ? parent.displayText : "No plugins found"
+                                            color: parent.displayText.length > 0 ? root.textPrimary : root.textMuted
+                                            font.pixelSize: 12
+                                            elide: Text.ElideRight
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        delegate: ItemDelegate {
+                                            width: ListView.view ? ListView.view.width : implicitWidth
+                                            contentItem: Text {
+                                                text: modelData.label
+                                                color: root.textPrimary
+                                                font.pixelSize: 12
+                                                elide: Text.ElideRight
+                                            }
+                                            background: Rectangle {
+                                                color: hovered ? root.accent : root.cardBg
+                                                radius: 4
+                                            }
+                                        }
+                                        popup.background: Rectangle {
+                                            color: root.cardBg
+                                            border.color: root.stepBorder
+                                            radius: 6
+                                        }
+                                        Connections {
+                                            target: engine
+                                            function onActiveInstrumentChanged() {
+                                                instrumentPluginCombo.currentIndex = root.selectedPluginIndex();
+                                            }
+                                            function onAvailablePluginsChanged() {
+                                                instrumentPluginCombo.currentIndex = root.selectedPluginIndex();
+                                            }
+                                        }
+                                    }
+                                }
+
+                                LoopButton {
+                                    Layout.preferredWidth: 70
+                                    Layout.alignment: Qt.AlignBottom
+                                    label: "Scan"
+                                    iconText: "↺"
+                                    onClicked: engine.scanPlugins()
+                                }
+
+                                Column {
+                                    spacing: 5
+                                    Layout.preferredWidth: 100
+                                    Text {
+                                        text: "Format"
+                                        font.pixelSize: 10
+                                        color: root.textMuted
+                                    }
+                                    ComboBox {
+                                        id: instrumentFormatCombo
+                                        property var formatOptions: ["LV2", "CLAP", "VST3"]
+                                        width: parent.width
+                                        model: formatOptions
+                                        currentIndex: Math.max(0, formatOptions.indexOf(engine.activeInstrumentFormat))
+                                        onActivated: engine.activeInstrumentFormat = formatOptions[currentIndex]
+                                        Connections {
+                                            target: engine
+                                            function onActiveInstrumentChanged() {
+                                                instrumentFormatCombo.currentIndex = Math.max(0, instrumentFormatCombo.formatOptions.indexOf(engine.activeInstrumentFormat));
+                                            }
+                                        }
+                                        background: Rectangle {
+                                            color: root.panelBg
+                                            border.color: root.stepBorder
+                                            radius: 6
+                                        }
+                                        contentItem: Text {
+                                            leftPadding: 10
+                                            text: parent.displayText
+                                            color: root.textPrimary
+                                            font.pixelSize: 12
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    spacing: 5
+                                    Layout.preferredWidth: 170
+                                    Text {
+                                        text: "Preset label"
+                                        font.pixelSize: 10
+                                        color: root.textMuted
+                                    }
+                                    TextField {
+                                        id: instrumentPresetField
+                                        width: parent.width
+                                        text: engine.activeInstrumentPresetName
+                                        selectByMouse: true
+                                        font.pixelSize: 12
+                                        color: root.textPrimary
+                                        placeholderText: "Init"
+                                        placeholderTextColor: root.textMuted
+                                        onEditingFinished: engine.activeInstrumentPresetName = text
+                                        Connections {
+                                            target: engine
+                                            function onActiveInstrumentChanged() {
+                                                if (!instrumentPresetField.activeFocus)
+                                                    instrumentPresetField.text = engine.activeInstrumentPresetName;
+                                            }
+                                        }
+                                        background: Rectangle {
+                                            color: root.panelBg
+                                            border.color: instrumentPresetField.activeFocus ? root.accentLight : root.stepBorder
+                                            radius: 6
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    spacing: 5
+                                    Layout.preferredWidth: 150
+                                    Text {
+                                        text: "Slot name"
+                                        font.pixelSize: 10
+                                        color: root.textMuted
+                                    }
+                                    TextField {
+                                        id: instrumentNameField
+                                        width: parent.width
+                                        text: engine.activeInstrumentName
+                                        selectByMouse: true
+                                        font.pixelSize: 12
+                                        color: root.textPrimary
+                                        placeholderText: "Surge-XT Track"
+                                        placeholderTextColor: root.textMuted
+                                        onEditingFinished: engine.activeInstrumentName = text
+                                        Connections {
+                                            target: engine
+                                            function onActiveInstrumentChanged() {
+                                                if (!instrumentNameField.activeFocus)
+                                                    instrumentNameField.text = engine.activeInstrumentName;
+                                            }
+                                        }
+                                        background: Rectangle {
+                                            color: root.panelBg
+                                            border.color: instrumentNameField.activeFocus ? root.accentLight : root.stepBorder
+                                            radius: 6
+                                        }
+                                    }
+                                }
+
+                                Item {
+                                    Layout.fillWidth: true
+                                }
+
+                                Column {
+                                    spacing: 6
+                                    Text {
+                                        text: "Enabled"
+                                        font.pixelSize: 10
+                                        color: root.textMuted
+                                    }
+                                    Switch {
+                                        checked: engine.activeInstrumentEnabled
+                                        onCheckedChanged: engine.activeInstrumentEnabled = checked
+                                        indicator: Rectangle {
+                                            implicitWidth: 44
+                                            implicitHeight: 22
+                                            radius: 11
+                                            color: parent.checked ? root.accent : root.panelBg
+                                            border.color: parent.checked ? root.accentLight : root.stepBorder
+                                            Rectangle {
+                                                x: parent.parent.checked ? parent.width - width - 2 : 2
+                                                y: 2
+                                                width: 18
+                                                height: 18
+                                                radius: 9
+                                                color: "white"
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 

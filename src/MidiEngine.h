@@ -25,6 +25,21 @@ struct MidiLearnTarget {
   Type type = None;
 };
 
+struct InstrumentSlot {
+  bool enabled = true;
+  QString name;
+  QString pluginFormat;
+  QString pluginId;
+  QString presetName;
+};
+
+struct AvailablePlugin {
+  QString name;
+  QString pluginFormat;
+  QString pluginId;
+  QString path;
+};
+
 class MidiEngine : public QObject {
   Q_OBJECT
   QML_ELEMENT
@@ -38,6 +53,22 @@ class MidiEngine : public QObject {
                  activeTrackChanged)
   Q_PROPERTY(int activeTrackMidiChannel READ activeTrackMidiChannel WRITE
                  setActiveTrackMidiChannel NOTIFY activeTrackMidiChannelChanged)
+  Q_PROPERTY(QVariantList instrumentRack READ instrumentRack NOTIFY
+                 instrumentRackChanged)
+  Q_PROPERTY(QVariantList availablePlugins READ availablePlugins NOTIFY
+                 availablePluginsChanged)
+  Q_PROPERTY(QString activeInstrumentName READ activeInstrumentName WRITE
+                 setActiveInstrumentName NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(QString activeInstrumentFormat READ activeInstrumentFormat WRITE
+                 setActiveInstrumentFormat NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(
+      QString activeInstrumentPluginId READ activeInstrumentPluginId WRITE
+          setActiveInstrumentPluginId NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(
+      QString activeInstrumentPresetName READ activeInstrumentPresetName WRITE
+          setActiveInstrumentPresetName NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(bool activeInstrumentEnabled READ activeInstrumentEnabled WRITE
+                 setActiveInstrumentEnabled NOTIFY activeInstrumentChanged)
   Q_PROPERTY(bool recordAllBeats READ recordAllBeats WRITE setRecordAllBeats
                  NOTIFY recordAllBeatsChanged)
   Q_PROPERTY(QStringList inputPorts READ inputPorts NOTIFY portsChanged)
@@ -90,6 +121,13 @@ public:
   int trackCount() const { return m_trackCount; }
   int activeTrack() const { return m_activeTrack; }
   int activeTrackMidiChannel() const;
+  QVariantList instrumentRack() const;
+  QVariantList availablePlugins() const;
+  QString activeInstrumentName() const;
+  QString activeInstrumentFormat() const;
+  QString activeInstrumentPluginId() const;
+  QString activeInstrumentPresetName() const;
+  bool activeInstrumentEnabled() const;
   bool recordAllBeats() const { return m_recordAllBeats; }
   QStringList inputPorts() const { return m_inputPorts; }
   QStringList outputPorts() const { return m_outputPorts; }
@@ -122,6 +160,11 @@ public:
   void setPassthroughEnabled(bool enabled);
   void setActiveTrack(int track);
   void setActiveTrackMidiChannel(int channel);
+  void setActiveInstrumentName(const QString &name);
+  void setActiveInstrumentFormat(const QString &format);
+  void setActiveInstrumentPluginId(const QString &pluginId);
+  void setActiveInstrumentPresetName(const QString &presetName);
+  void setActiveInstrumentEnabled(bool enabled);
   void setRecordAllBeats(bool enabled);
 
 public slots:
@@ -135,6 +178,8 @@ public slots:
   void setCursorStep(int index);
   void tapTempo();
   void refreshPorts();
+  void scanPlugins();
+  void setActiveInstrumentFromAvailablePlugin(int index);
   bool saveProject(const QString &filePath);
   bool loadProject(const QString &filePath);
   void startMidiLearn(const QString &target);
@@ -148,6 +193,9 @@ signals:
   void sequenceChanged();
   void activeTrackChanged();
   void activeTrackMidiChannelChanged();
+  void activeInstrumentChanged();
+  void instrumentRackChanged();
+  void availablePluginsChanged();
   void recordAllBeatsChanged();
   void portsChanged();
   void selectedInputPortChanged();
@@ -182,6 +230,12 @@ private:
   void saveSettings() const;
   void tryRestoreSavedPorts();
   bool triggerBoundAction(int value, bool isNote);
+  InstrumentSlot defaultInstrumentSlot(int trackIndex) const;
+  InstrumentSlot activeInstrumentSlot() const;
+  void emitInstrumentChanges();
+  QStringList pluginSearchPaths(const QString &format) const;
+  void addAvailablePlugin(const QString &name, const QString &format,
+                          const QString &pluginId, const QString &path);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
   static QString projectNameToFileName(const QString &name);
@@ -195,6 +249,8 @@ private:
   // Tracks: each track has m_maxSteps chord steps.
   QVector<QVector<ChordStep>> m_tracks;
   QVector<int> m_trackMidiChannels;
+  QVector<InstrumentSlot> m_instrumentRack;
+  QVector<AvailablePlugin> m_availablePlugins;
   int m_trackCount = 4;
   int m_activeTrack = 0;
   int m_maxSteps = 16;

@@ -37,6 +37,7 @@
             qt6.qtdeclarative # Qt Quick / QML
             rtmidi
             alsa-lib
+            surge-xt
           ];
 
           cmakeFlags = [
@@ -50,6 +51,18 @@
             "XDG_DATA_DIRS"
             ":"
             "$out/share"
+            "--prefix"
+            "LV2_PATH"
+            ":"
+            "${pkgs.surge-xt}/lib/lv2"
+            "--prefix"
+            "CLAP_PATH"
+            ":"
+            "${pkgs.surge-xt}/lib/clap"
+            "--prefix"
+            "VST3_PATH"
+            ":"
+            "${pkgs.surge-xt}/lib/vst3"
           ];
 
           meta = with pkgs.lib; {
@@ -81,12 +94,16 @@
             qt6.qttools
             rtmidi
             alsa-lib
+            surge-xt
             gdb
             clang-tools # clangd LSP
           ];
 
           shellHook = ''
             export QT_QPA_PLATFORM=xcb
+            export LV2_PATH="${pkgs.surge-xt}/lib/lv2''${LV2_PATH:+:$LV2_PATH}"
+            export CLAP_PATH="${pkgs.surge-xt}/lib/clap''${CLAP_PATH:+:$CLAP_PATH}"
+            export VST3_PATH="${pkgs.surge-xt}/lib/vst3''${VST3_PATH:+:$VST3_PATH}"
             echo "LoopMidi dev shell — version ${version}"
           '';
         };

@@ -2,6 +2,8 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -9,6 +11,8 @@
 #include <QJsonObject>
 #include <QMutexLocker>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStandardPaths>
 #include <QUrl>
 
 static const int kChordWindowMs =
@@ -59,9 +63,13 @@ MidiEngine::MidiEngine(QObject *parent) : QObject(parent) {
   m_trackMidiChannels.resize(m_trackCount);
   for (int i = 0; i < m_trackCount; ++i)
     m_trackMidiChannels[i] = qMin(i, 15);
+  m_instrumentRack.resize(m_trackCount);
+  for (int i = 0; i < m_trackCount; ++i)
+    m_instrumentRack[i] = defaultInstrumentSlot(i);
 
   setupVirtualOutput();
   loadSettings();
+  scanPlugins();
   refreshPorts();
   tryRestoreSavedPorts();
 }
@@ -289,6 +297,7 @@ void MidiEngine::setActiveTrack(int track) {
     stopRecording();
   emit activeTrackChanged();
   emit activeTrackMidiChannelChanged();
+  emit activeInstrumentChanged();
   emit sequenceChanged();
 }
 
@@ -306,6 +315,260 @@ void MidiEngine::setActiveTrackMidiChannel(int channel) {
     return;
   m_trackMidiChannels[m_activeTrack] = nextChannel;
   emit activeTrackMidiChannelChanged();
+  saveSettings();
+}
+
+InstrumentSlot MidiEngine::defaultInstrumentSlot(int trackIndex) const {
+  InstrumentSlot slot;
+  slot.enabled = true;
+  slot.name = QStringLiteral("Surge-XT Track %1").arg(trackIndex + 1);
+  slot.pluginFormat = QStringLiteral("LV2");
+  slot.pluginId = QStringLiteral("Surge XT");
+  slot.presetName = QStringLiteral("Init");
+  return slot;
+}
+
+InstrumentSlot MidiEngine::activeInstrumentSlot() const {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return defaultInstrumentSlot(qMax(0, m_activeTrack));
+  return m_instrumentRack[m_activeTrack];
+}
+
+QVariantList MidiEngine::instrumentRack() const {
+  QVariantList result;
+  for (int i = 0; i < m_instrumentRack.size(); ++i) {
+    const InstrumentSlot &slot = m_instrumentRack[i];
+    QVariantMap map;
+    map["track"] = i;
+    map["enabled"] = slot.enabled;
+    map["name"] = slot.name;
+    map["pluginFormat"] = slot.pluginFormat;
+    map["pluginId"] = slot.pluginId;
+    map["presetName"] = slot.presetName;
+    result << map;
+  }
+  return result;
+}
+
+QVariantList MidiEngine::availablePlugins() const {
+  QVariantList result;
+  for (const AvailablePlugin &plugin : m_availablePlugins) {
+    QVariantMap map;
+    map["name"] = plugin.name;
+    map["pluginFormat"] = plugin.pluginFormat;
+    map["pluginId"] = plugin.pluginId;
+    map["path"] = plugin.path;
+    map["label"] =
+        QStringLiteral("%1 (%2)").arg(plugin.name, plugin.pluginFormat);
+    result << map;
+  }
+  return result;
+}
+
+QStringList MidiEngine::pluginSearchPaths(const QString &format) const {
+  QString envName;
+  QStringList paths;
+  const QString upperFormat = format.toUpper();
+
+  if (upperFormat == QStringLiteral("LV2")) {
+    envName = QStringLiteral("LV2_PATH");
+    paths << QStringLiteral("%1/.lv2").arg(QDir::homePath())
+          << QStringLiteral("/usr/local/lib/lv2")
+          << QStringLiteral("/usr/lib/lv2")
+          << QStringLiteral("/run/current-system/sw/lib/lv2");
+  } else if (upperFormat == QStringLiteral("CLAP")) {
+    envName = QStringLiteral("CLAP_PATH");
+    paths << QStringLiteral("%1/.clap").arg(QDir::homePath())
+          << QStringLiteral("/usr/local/lib/clap")
+          << QStringLiteral("/usr/lib/clap")
+          << QStringLiteral("/run/current-system/sw/lib/clap");
+  } else if (upperFormat == QStringLiteral("VST3")) {
+    envName = QStringLiteral("VST3_PATH");
+    paths << QStringLiteral("%1/.vst3").arg(QDir::homePath())
+          << QStringLiteral("/usr/local/lib/vst3")
+          << QStringLiteral("/usr/lib/vst3")
+          << QStringLiteral("/run/current-system/sw/lib/vst3");
+  }
+
+  if (!envName.isEmpty()) {
+    const QStringList envPaths =
+        QString::fromLocal8Bit(qgetenv(envName.toUtf8()))
+            .split(QLatin1Char(':'), Qt::SkipEmptyParts);
+    paths = envPaths + paths;
+  }
+
+  paths.removeDuplicates();
+  return paths;
+}
+
+void MidiEngine::addAvailablePlugin(const QString &name, const QString &format,
+                                    const QString &pluginId,
+                                    const QString &path) {
+  const QString key =
+      format + QLatin1Char('|') + pluginId + QLatin1Char('|') + path;
+  for (const AvailablePlugin &plugin : m_availablePlugins) {
+    const QString existingKey = plugin.pluginFormat + QLatin1Char('|') +
+                                plugin.pluginId + QLatin1Char('|') +
+                                plugin.path;
+    if (existingKey == key)
+      return;
+  }
+
+  AvailablePlugin plugin;
+  plugin.name = name;
+  plugin.pluginFormat = format;
+  plugin.pluginId = pluginId;
+  plugin.path = path;
+  m_availablePlugins.append(plugin);
+}
+
+void MidiEngine::scanPlugins() {
+  m_availablePlugins.clear();
+
+  for (const QString &path : pluginSearchPaths(QStringLiteral("LV2"))) {
+    QDir dir(path);
+    if (!dir.exists())
+      continue;
+    const QFileInfoList bundles =
+        dir.entryInfoList(QStringList() << QStringLiteral("*.lv2"),
+                          QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &bundle : bundles) {
+      QString name = bundle.completeBaseName();
+      if (name.compare(QStringLiteral("Surge XT"), Qt::CaseInsensitive) == 0 ||
+          name.compare(QStringLiteral("SurgeXT"), Qt::CaseInsensitive) == 0)
+        name = QStringLiteral("Surge XT");
+      addAvailablePlugin(name, QStringLiteral("LV2"), name,
+                         bundle.absoluteFilePath());
+    }
+  }
+
+  for (const QString &path : pluginSearchPaths(QStringLiteral("CLAP"))) {
+    QDirIterator it(path, QStringList() << QStringLiteral("*.clap"),
+                    QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+      const QFileInfo file(it.next());
+      addAvailablePlugin(file.completeBaseName(), QStringLiteral("CLAP"),
+                         file.completeBaseName(), file.absoluteFilePath());
+    }
+  }
+
+  for (const QString &path : pluginSearchPaths(QStringLiteral("VST3"))) {
+    QDirIterator it(path, QStringList() << QStringLiteral("*.vst3"),
+                    QDir::Dirs | QDir::NoDotAndDotDot,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+      const QFileInfo bundle(it.next());
+      addAvailablePlugin(bundle.completeBaseName(), QStringLiteral("VST3"),
+                         bundle.completeBaseName(), bundle.absoluteFilePath());
+    }
+  }
+
+  emit availablePluginsChanged();
+}
+
+void MidiEngine::setActiveInstrumentFromAvailablePlugin(int index) {
+  if (index < 0 || index >= m_availablePlugins.size() || m_activeTrack < 0 ||
+      m_activeTrack >= m_instrumentRack.size())
+    return;
+
+  const AvailablePlugin &plugin = m_availablePlugins[index];
+  InstrumentSlot &slot = m_instrumentRack[m_activeTrack];
+  slot.enabled = true;
+  slot.name =
+      QStringLiteral("%1 Track %2").arg(plugin.name).arg(m_activeTrack + 1);
+  slot.pluginFormat = plugin.pluginFormat;
+  slot.pluginId = plugin.pluginId;
+  if (slot.presetName.trimmed().isEmpty())
+    slot.presetName = QStringLiteral("Init");
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+QString MidiEngine::activeInstrumentName() const {
+  return activeInstrumentSlot().name;
+}
+
+QString MidiEngine::activeInstrumentFormat() const {
+  return activeInstrumentSlot().pluginFormat;
+}
+
+QString MidiEngine::activeInstrumentPluginId() const {
+  return activeInstrumentSlot().pluginId;
+}
+
+QString MidiEngine::activeInstrumentPresetName() const {
+  return activeInstrumentSlot().presetName;
+}
+
+bool MidiEngine::activeInstrumentEnabled() const {
+  return activeInstrumentSlot().enabled;
+}
+
+void MidiEngine::emitInstrumentChanges() {
+  emit activeInstrumentChanged();
+  emit instrumentRackChanged();
+}
+
+void MidiEngine::setActiveInstrumentName(const QString &name) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  const QString nextName = name.trimmed().isEmpty()
+                               ? defaultInstrumentSlot(m_activeTrack).name
+                               : name.trimmed();
+  if (m_instrumentRack[m_activeTrack].name == nextName)
+    return;
+  m_instrumentRack[m_activeTrack].name = nextName;
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentFormat(const QString &format) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  const QString nextFormat = format.trimmed().isEmpty()
+                                 ? QStringLiteral("LV2")
+                                 : format.trimmed().toUpper();
+  if (m_instrumentRack[m_activeTrack].pluginFormat == nextFormat)
+    return;
+  m_instrumentRack[m_activeTrack].pluginFormat = nextFormat;
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentPluginId(const QString &pluginId) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  const QString nextPluginId =
+      pluginId.trimmed().isEmpty()
+          ? defaultInstrumentSlot(m_activeTrack).pluginId
+          : pluginId.trimmed();
+  if (m_instrumentRack[m_activeTrack].pluginId == nextPluginId)
+    return;
+  m_instrumentRack[m_activeTrack].pluginId = nextPluginId;
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentPresetName(const QString &presetName) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  const QString nextPresetName = presetName.trimmed().isEmpty()
+                                     ? QStringLiteral("Init")
+                                     : presetName.trimmed();
+  if (m_instrumentRack[m_activeTrack].presetName == nextPresetName)
+    return;
+  m_instrumentRack[m_activeTrack].presetName = nextPresetName;
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentEnabled(bool enabled) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  if (m_instrumentRack[m_activeTrack].enabled == enabled)
+    return;
+  m_instrumentRack[m_activeTrack].enabled = enabled;
+  emitInstrumentChanges();
   saveSettings();
 }
 
@@ -460,6 +723,18 @@ bool MidiEngine::saveProject(const QString &filePath) {
     trackMidiChannels.append(channel + 1);
   root["trackMidiChannels"] = trackMidiChannels;
 
+  QJsonArray instrumentRack;
+  for (const InstrumentSlot &slot : m_instrumentRack) {
+    QJsonObject slotJson;
+    slotJson["enabled"] = slot.enabled;
+    slotJson["name"] = slot.name;
+    slotJson["pluginFormat"] = slot.pluginFormat;
+    slotJson["pluginId"] = slot.pluginId;
+    slotJson["presetName"] = slot.presetName;
+    instrumentRack.append(slotJson);
+  }
+  root["instrumentRack"] = instrumentRack;
+
   QJsonArray tracks;
   {
     QMutexLocker locker(&m_mutex);
@@ -550,6 +825,35 @@ bool MidiEngine::loadProject(const QString &filePath) {
         qBound(1, trackMidiChannelsJson[i].toInt(i + 1), 16) - 1;
   }
 
+  QVector<InstrumentSlot> loadedInstrumentRack(m_trackCount);
+  for (int i = 0; i < m_trackCount; ++i)
+    loadedInstrumentRack[i] = defaultInstrumentSlot(i);
+
+  const QJsonArray instrumentRackJson = root.value("instrumentRack").toArray();
+  for (int i = 0;
+       i < qMin(m_trackCount, static_cast<int>(instrumentRackJson.size()));
+       ++i) {
+    const QJsonObject slotJson = instrumentRackJson[i].toObject();
+    InstrumentSlot slot = loadedInstrumentRack[i];
+    slot.enabled = slotJson.value("enabled").toBool(slot.enabled);
+    slot.name = slotJson.value("name").toString(slot.name).trimmed();
+    slot.pluginFormat =
+        slotJson.value("pluginFormat").toString(slot.pluginFormat).trimmed();
+    slot.pluginId =
+        slotJson.value("pluginId").toString(slot.pluginId).trimmed();
+    slot.presetName =
+        slotJson.value("presetName").toString(slot.presetName).trimmed();
+    if (slot.name.isEmpty())
+      slot.name = defaultInstrumentSlot(i).name;
+    if (slot.pluginFormat.isEmpty())
+      slot.pluginFormat = QStringLiteral("LV2");
+    if (slot.pluginId.isEmpty())
+      slot.pluginId = defaultInstrumentSlot(i).pluginId;
+    if (slot.presetName.isEmpty())
+      slot.presetName = QStringLiteral("Init");
+    loadedInstrumentRack[i] = slot;
+  }
+
   for (int trackIndex = 0;
        trackIndex < qMin(m_trackCount, static_cast<int>(tracksJson.size()));
        ++trackIndex) {
@@ -576,11 +880,27 @@ bool MidiEngine::loadProject(const QString &filePath) {
 
   const bool activeTrackMidiChannelChangedNow =
       m_trackMidiChannels != loadedTrackMidiChannels;
+  bool instrumentRackChangedNow =
+      m_instrumentRack.size() != loadedInstrumentRack.size();
+  if (!instrumentRackChangedNow) {
+    for (int i = 0; i < m_instrumentRack.size(); ++i) {
+      const InstrumentSlot &current = m_instrumentRack[i];
+      const InstrumentSlot &loaded = loadedInstrumentRack[i];
+      if (current.enabled != loaded.enabled || current.name != loaded.name ||
+          current.pluginFormat != loaded.pluginFormat ||
+          current.pluginId != loaded.pluginId ||
+          current.presetName != loaded.presetName) {
+        instrumentRackChangedNow = true;
+        break;
+      }
+    }
+  }
 
   {
     QMutexLocker locker(&m_mutex);
     m_tracks = loadedTracks;
     m_trackMidiChannels = loadedTrackMidiChannels;
+    m_instrumentRack = loadedInstrumentRack;
   }
 
   const QString loadedName = root.value("name").toString(defaultProjectName());
@@ -614,6 +934,10 @@ bool MidiEngine::loadProject(const QString &filePath) {
     emit activeTrackChanged();
   if (activeTrackChangedNow || activeTrackMidiChannelChangedNow)
     emit activeTrackMidiChannelChanged();
+  if (activeTrackChangedNow || instrumentRackChangedNow) {
+    emit activeInstrumentChanged();
+    emit instrumentRackChanged();
+  }
   if (recordAllBeatsChangedNow)
     emit recordAllBeatsChanged();
   if (cursorChanged)
@@ -958,6 +1282,9 @@ void MidiEngine::advanceStep() {
   m_activePlaybackNotes.clear();
 
   for (int trackIndex = 0; trackIndex < m_tracks.size(); ++trackIndex) {
+    if (trackIndex < m_instrumentRack.size() &&
+        !m_instrumentRack[trackIndex].enabled)
+      continue;
     const auto &track = m_tracks[trackIndex];
     const ChordStep &step = track[playbackStep];
     const int outputChannel = trackIndex < m_trackMidiChannels.size()
@@ -1042,6 +1369,29 @@ void MidiEngine::loadSettings() {
     const int channel = trackMidiChannels[i].toInt();
     m_trackMidiChannels[i] = qBound(1, channel > 0 ? channel : i + 1, 16) - 1;
   }
+  const QVariantList instrumentRack = s.value("instrumentRack").toList();
+  for (int i = 0;
+       i < qMin(m_trackCount, static_cast<int>(instrumentRack.size())); ++i) {
+    const QVariantMap slotMap = instrumentRack[i].toMap();
+    InstrumentSlot slot = defaultInstrumentSlot(i);
+    slot.enabled = slotMap.value("enabled", slot.enabled).toBool();
+    slot.name = slotMap.value("name", slot.name).toString().trimmed();
+    slot.pluginFormat =
+        slotMap.value("pluginFormat", slot.pluginFormat).toString().trimmed();
+    slot.pluginId =
+        slotMap.value("pluginId", slot.pluginId).toString().trimmed();
+    slot.presetName =
+        slotMap.value("presetName", slot.presetName).toString().trimmed();
+    if (slot.name.isEmpty())
+      slot.name = defaultInstrumentSlot(i).name;
+    if (slot.pluginFormat.isEmpty())
+      slot.pluginFormat = QStringLiteral("LV2");
+    if (slot.pluginId.isEmpty())
+      slot.pluginId = defaultInstrumentSlot(i).pluginId;
+    if (slot.presetName.isEmpty())
+      slot.presetName = QStringLiteral("Init");
+    m_instrumentRack[i] = slot;
+  }
   m_recordButtonIsNote = s.value("recordButtonIsNote", false).toBool();
   m_playButtonIsNote = s.value("playButtonIsNote", false).toBool();
   m_stopButtonIsNote = s.value("stopButtonIsNote", false).toBool();
@@ -1070,6 +1420,17 @@ void MidiEngine::saveSettings() const {
   for (int channel : m_trackMidiChannels)
     trackMidiChannels << channel + 1;
   s.setValue("trackMidiChannels", trackMidiChannels);
+  QVariantList instrumentRack;
+  for (const InstrumentSlot &slot : m_instrumentRack) {
+    QVariantMap slotMap;
+    slotMap["enabled"] = slot.enabled;
+    slotMap["name"] = slot.name;
+    slotMap["pluginFormat"] = slot.pluginFormat;
+    slotMap["pluginId"] = slot.pluginId;
+    slotMap["presetName"] = slot.presetName;
+    instrumentRack << slotMap;
+  }
+  s.setValue("instrumentRack", instrumentRack);
   s.setValue("recordButtonIsNote", m_recordButtonIsNote);
   s.setValue("playButtonIsNote", m_playButtonIsNote);
   s.setValue("stopButtonIsNote", m_stopButtonIsNote);
