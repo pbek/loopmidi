@@ -256,6 +256,7 @@ private:
   QStringList pluginSearchPaths(const QString &format) const;
   void addAvailablePlugin(const QString &name, const QString &format,
                           const QString &pluginId, const QString &path);
+  bool resolveInstrumentSlotPlugin(int trackIndex);
   QString pluginHostExecutable(const QString &format) const;
   QString pluginHostClientName(int trackIndex) const;
   void connectPluginHostAudio(const QString &clientName);

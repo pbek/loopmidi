@@ -102,6 +102,8 @@ Window {
             var plugin = engine.availablePlugins[i];
             if (plugin.pluginId === engine.activeInstrumentPluginId && plugin.pluginFormat === engine.activeInstrumentFormat)
                 return i;
+            if (plugin.name === engine.activeInstrumentPluginId && plugin.pluginFormat === engine.activeInstrumentFormat)
+                return i;
         }
         return -1;
     }

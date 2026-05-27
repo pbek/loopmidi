@@ -506,6 +506,43 @@ void MidiEngine::setActiveInstrumentFromAvailablePlugin(int index) {
   saveSettings();
 }
 
+bool MidiEngine::resolveInstrumentSlotPlugin(int trackIndex) {
+  if (trackIndex < 0 || trackIndex >= m_instrumentRack.size())
+    return false;
+
+  InstrumentSlot &slot = m_instrumentRack[trackIndex];
+  if (slot.pluginFormat.compare(QStringLiteral("LV2"), Qt::CaseInsensitive) !=
+      0)
+    return false;
+  if (slot.pluginId.startsWith(QStringLiteral("http")))
+    return true;
+
+  const QString wanted = slot.pluginId.trimmed();
+  const QString slotName = slot.name.trimmed();
+  for (const AvailablePlugin &plugin : std::as_const(m_availablePlugins)) {
+    if (plugin.pluginFormat.compare(QStringLiteral("LV2"),
+                                    Qt::CaseInsensitive) != 0)
+      continue;
+    const bool nameMatches =
+        plugin.name.compare(wanted, Qt::CaseInsensitive) == 0 ||
+        slotName.contains(plugin.name, Qt::CaseInsensitive) ||
+        plugin.path.contains(wanted, Qt::CaseInsensitive);
+    if (!nameMatches)
+      continue;
+
+    slot.name =
+        QStringLiteral("%1 Track %2").arg(plugin.name).arg(trackIndex + 1);
+    slot.pluginFormat = plugin.pluginFormat;
+    slot.pluginId = plugin.pluginId;
+    slot.pluginPath = plugin.path;
+    emitInstrumentChanges();
+    saveSettings();
+    return true;
+  }
+
+  return false;
+}
+
 QString MidiEngine::activeInstrumentName() const {
   return activeInstrumentSlot().name;
 }
@@ -639,10 +676,17 @@ void MidiEngine::startPluginHost() {
 
   int started = 0;
   for (int i = 0; i < m_instrumentRack.size(); ++i) {
-    const InstrumentSlot &slot = m_instrumentRack[i];
-    if (!slot.enabled)
+    if (!m_instrumentRack[i].enabled)
       continue;
 
+    if (!resolveInstrumentSlotPlugin(i)) {
+      emit errorOccurred(QStringLiteral("Select a scanned LV2 plugin for track "
+                                        "%1 before starting the host.")
+                             .arg(i + 1));
+      continue;
+    }
+
+    const InstrumentSlot &slot = m_instrumentRack[i];
     const QString hostExecutable = pluginHostExecutable(slot.pluginFormat);
     if (hostExecutable.isEmpty()) {
       emit errorOccurred(
@@ -650,14 +694,6 @@ void MidiEngine::startPluginHost() {
               .arg(slot.pluginFormat));
       continue;
     }
-    if (slot.pluginId.trimmed().isEmpty() ||
-        !slot.pluginId.startsWith(QStringLiteral("http"))) {
-      emit errorOccurred(QStringLiteral("Select a scanned LV2 plugin for track "
-                                        "%1 before starting the host.")
-                             .arg(i + 1));
-      continue;
-    }
-
     auto *process = new QProcess(this);
     process->setProgram(hostExecutable);
     const QString clientName = pluginHostClientName(i);
