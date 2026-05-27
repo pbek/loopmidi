@@ -257,8 +257,11 @@ private:
   void addAvailablePlugin(const QString &name, const QString &format,
                           const QString &pluginId, const QString &path);
   bool resolveInstrumentSlotPlugin(int trackIndex);
+  bool jackServerAvailable(QString *errorMessage) const;
   QString pluginHostExecutable(const QString &format) const;
   QString pluginHostClientName(int trackIndex) const;
+  void appendPluginHostOutput(QProcess *process, int trackIndex,
+                              const QString &output);
   void connectPluginHostAudio(const QString &clientName);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
@@ -278,6 +281,7 @@ private:
   QVector<QProcess *> m_pluginHostProcesses;
   bool m_pluginHostRunning = false;
   bool m_pluginHostAutoConnectAudio = true;
+  bool m_stoppingPluginHost = false;
   QString m_pluginHostStatus = QStringLiteral("Plugin host stopped");
   int m_trackCount = 4;
   int m_activeTrack = 0;

@@ -630,6 +630,61 @@ QString MidiEngine::pluginHostClientName(int trackIndex) const {
   return QStringLiteral("loopmidi-track-%1").arg(trackIndex + 1);
 }
 
+bool MidiEngine::jackServerAvailable(QString *errorMessage) const {
+  const QString jackLsp =
+      QStandardPaths::findExecutable(QStringLiteral("jack_lsp"));
+  if (jackLsp.isEmpty()) {
+    if (errorMessage)
+      *errorMessage = QStringLiteral("jack_lsp is not available.");
+    return false;
+  }
+
+  QProcess lsp;
+  lsp.setProgram(jackLsp);
+  lsp.setProcessChannelMode(QProcess::MergedChannels);
+  lsp.start();
+  if (!lsp.waitForFinished(1500)) {
+    lsp.kill();
+    if (errorMessage)
+      *errorMessage = QStringLiteral("Timed out while checking JACK ports.");
+    return false;
+  }
+
+  if (lsp.exitStatus() != QProcess::NormalExit || lsp.exitCode() != 0) {
+    const QString output = QString::fromLocal8Bit(lsp.readAll()).trimmed();
+    if (errorMessage)
+      *errorMessage = output.isEmpty()
+                          ? QStringLiteral("JACK server is not running.")
+                          : output;
+    return false;
+  }
+
+  return true;
+}
+
+void MidiEngine::appendPluginHostOutput(QProcess *process, int trackIndex,
+                                        const QString &output) {
+  const QString trimmed = output.trimmed();
+  if (trimmed.isEmpty())
+    return;
+
+  const QString prefix =
+      QStringLiteral("[plugin host track %1]").arg(trackIndex + 1);
+  const QStringList lines =
+      trimmed.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+  for (const QString &line : lines)
+    qWarning().noquote() << prefix << line.trimmed();
+
+  const QString previous = process->property("loopmidiOutput").toString();
+  QString combined = previous +
+                     (previous.isEmpty() ? QString() : QStringLiteral("\n")) +
+                     trimmed;
+  const int maxLength = 1600;
+  if (combined.size() > maxLength)
+    combined = combined.right(maxLength);
+  process->setProperty("loopmidiOutput", combined);
+}
+
 void MidiEngine::connectPluginHostAudio(const QString &clientName) {
   if (!m_pluginHostAutoConnectAudio)
     return;
@@ -674,7 +729,20 @@ void MidiEngine::connectPluginHostAudio(const QString &clientName) {
 void MidiEngine::startPluginHost() {
   stopPluginHost();
 
+  QString jackError;
+  if (!jackServerAvailable(&jackError)) {
+    m_pluginHostRunning = false;
+    m_pluginHostStatus =
+        QStringLiteral("Plugin host stopped: JACK is not running");
+    emit pluginHostChanged();
+    emit errorOccurred(
+        QStringLiteral("Cannot start plugin host: %1").arg(jackError));
+    qWarning().noquote() << "[plugin host] JACK preflight failed:" << jackError;
+    return;
+  }
+
   int started = 0;
+  m_stoppingPluginHost = false;
   for (int i = 0; i < m_instrumentRack.size(); ++i) {
     if (!m_instrumentRack[i].enabled)
       continue;
@@ -701,6 +769,12 @@ void MidiEngine::startPluginHost() {
                           << QStringLiteral("-n") << clientName
                           << QStringLiteral("-s") << slot.pluginId);
     process->setProcessChannelMode(QProcess::MergedChannels);
+    connect(process, &QProcess::readyReadStandardOutput, this,
+            [this, process, i]() {
+              appendPluginHostOutput(
+                  process, i,
+                  QString::fromLocal8Bit(process->readAllStandardOutput()));
+            });
     connect(
         process, &QProcess::errorOccurred, this,
         [this, i](QProcess::ProcessError) {
@@ -709,10 +783,29 @@ void MidiEngine::startPluginHost() {
         });
     connect(process,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [this, process](int, QProcess::ExitStatus) {
+            [this, process, i](int exitCode, QProcess::ExitStatus exitStatus) {
+              appendPluginHostOutput(
+                  process, i,
+                  QString::fromLocal8Bit(process->readAllStandardOutput()));
+              const QString output =
+                  process->property("loopmidiOutput").toString();
               m_pluginHostProcesses.removeAll(process);
               process->deleteLater();
               const bool running = !m_pluginHostProcesses.isEmpty();
+              if (!m_stoppingPluginHost &&
+                  (exitStatus != QProcess::NormalExit || exitCode != 0)) {
+                const QString message =
+                    output.isEmpty()
+                        ? QStringLiteral(
+                              "Plugin host track %1 exited with code %2.")
+                              .arg(i + 1)
+                              .arg(exitCode)
+                        : QStringLiteral("Plugin host track %1 exited: %2")
+                              .arg(i + 1)
+                              .arg(output);
+                emit errorOccurred(message);
+                qWarning().noquote() << "[plugin host]" << message;
+              }
               if (m_pluginHostRunning != running) {
                 m_pluginHostRunning = running;
                 m_pluginHostStatus =
@@ -747,7 +840,10 @@ void MidiEngine::startPluginHost() {
 }
 
 void MidiEngine::stopPluginHost() {
-  for (QProcess *process : std::as_const(m_pluginHostProcesses)) {
+  m_stoppingPluginHost = true;
+  const QVector<QProcess *> processes = m_pluginHostProcesses;
+  m_pluginHostProcesses.clear();
+  for (QProcess *process : processes) {
     if (!process)
       continue;
     process->terminate();
@@ -755,7 +851,7 @@ void MidiEngine::stopPluginHost() {
       process->kill();
     process->deleteLater();
   }
-  m_pluginHostProcesses.clear();
+  m_stoppingPluginHost = false;
   if (m_pluginHostRunning ||
       m_pluginHostStatus != QStringLiteral("Plugin host stopped")) {
     m_pluginHostRunning = false;
