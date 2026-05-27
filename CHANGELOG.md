@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Internal instrument rack model with one Surge-XT-ready plugin slot per track, including plugin format, plugin ID, preset label, enabled state, and project/settings persistence.
 - Plugin discovery scans LV2, CLAP, and VST3 paths and lets each track select an available plugin from the instrument rack UI.
 - Process-backed LV2 host controls can launch one `jalv`/`jalv-qt` plugin host instance per enabled instrument slot.
+- Plugin host instances now use stable per-track JACK client names and can auto-connect detected audio outputs to system playback ports.
 
 ---
 

@@ -77,6 +77,8 @@ class MidiEngine : public QObject {
       bool pluginHostRunning READ pluginHostRunning NOTIFY pluginHostChanged)
   Q_PROPERTY(
       QString pluginHostStatus READ pluginHostStatus NOTIFY pluginHostChanged)
+  Q_PROPERTY(bool pluginHostAutoConnectAudio READ pluginHostAutoConnectAudio
+                 WRITE setPluginHostAutoConnectAudio NOTIFY pluginHostChanged)
   Q_PROPERTY(bool recordAllBeats READ recordAllBeats WRITE setRecordAllBeats
                  NOTIFY recordAllBeatsChanged)
   Q_PROPERTY(QStringList inputPorts READ inputPorts NOTIFY portsChanged)
@@ -139,6 +141,9 @@ public:
   bool activeInstrumentEnabled() const;
   bool pluginHostRunning() const { return m_pluginHostRunning; }
   QString pluginHostStatus() const { return m_pluginHostStatus; }
+  bool pluginHostAutoConnectAudio() const {
+    return m_pluginHostAutoConnectAudio;
+  }
   bool recordAllBeats() const { return m_recordAllBeats; }
   QStringList inputPorts() const { return m_inputPorts; }
   QStringList outputPorts() const { return m_outputPorts; }
@@ -176,6 +181,7 @@ public:
   void setActiveInstrumentPluginId(const QString &pluginId);
   void setActiveInstrumentPresetName(const QString &presetName);
   void setActiveInstrumentEnabled(bool enabled);
+  void setPluginHostAutoConnectAudio(bool enabled);
   void setRecordAllBeats(bool enabled);
 
 public slots:
@@ -251,6 +257,8 @@ private:
   void addAvailablePlugin(const QString &name, const QString &format,
                           const QString &pluginId, const QString &path);
   QString pluginHostExecutable(const QString &format) const;
+  QString pluginHostClientName(int trackIndex) const;
+  void connectPluginHostAudio(const QString &clientName);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
   static QString projectNameToFileName(const QString &name);
@@ -268,6 +276,7 @@ private:
   QVector<AvailablePlugin> m_availablePlugins;
   QVector<QProcess *> m_pluginHostProcesses;
   bool m_pluginHostRunning = false;
+  bool m_pluginHostAutoConnectAudio = true;
   QString m_pluginHostStatus = QStringLiteral("Plugin host stopped");
   int m_trackCount = 4;
   int m_activeTrack = 0;

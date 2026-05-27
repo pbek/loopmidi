@@ -39,6 +39,7 @@
             alsa-lib
             surge-xt
             jalv-qt
+            jack2
           ];
 
           cmakeFlags = [
@@ -56,6 +57,10 @@
             "PATH"
             ":"
             "${pkgs.jalv-qt}/bin"
+            "--prefix"
+            "PATH"
+            ":"
+            "${pkgs.jack2}/bin"
             "--prefix"
             "LV2_PATH"
             ":"
@@ -101,13 +106,14 @@
             alsa-lib
             surge-xt
             jalv-qt
+            jack2
             gdb
             clang-tools # clangd LSP
           ];
 
           shellHook = ''
             export QT_QPA_PLATFORM=xcb
-            export PATH="${pkgs.jalv-qt}/bin:$PATH"
+            export PATH="${pkgs.jalv-qt}/bin:${pkgs.jack2}/bin:$PATH"
             export LV2_PATH="${pkgs.surge-xt}/lib/lv2''${LV2_PATH:+:$LV2_PATH}"
             export CLAP_PATH="${pkgs.surge-xt}/lib/clap''${CLAP_PATH:+:$CLAP_PATH}"
             export VST3_PATH="${pkgs.surge-xt}/lib/vst3''${VST3_PATH:+:$VST3_PATH}"

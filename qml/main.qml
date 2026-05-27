@@ -1026,6 +1026,33 @@ Window {
                                         elide: Text.ElideRight
                                     }
 
+                                    Text {
+                                        text: "AUTO AUDIO"
+                                        font.pixelSize: 10
+                                        font.letterSpacing: 2
+                                        color: root.textMuted
+                                    }
+
+                                    Switch {
+                                        checked: engine.pluginHostAutoConnectAudio
+                                        onCheckedChanged: engine.pluginHostAutoConnectAudio = checked
+                                        indicator: Rectangle {
+                                            implicitWidth: 44
+                                            implicitHeight: 22
+                                            radius: 11
+                                            color: parent.checked ? root.accent : root.panelBg
+                                            border.color: parent.checked ? root.accentLight : root.stepBorder
+                                            Rectangle {
+                                                x: parent.parent.checked ? parent.width - width - 2 : 2
+                                                y: 2
+                                                width: 18
+                                                height: 18
+                                                radius: 9
+                                                color: "white"
+                                            }
+                                        }
+                                    }
+
                                     LoopButton {
                                         Layout.preferredWidth: 120
                                         label: engine.pluginHostRunning ? "Restart Host" : "Start Host"

@@ -589,6 +589,51 @@ QString MidiEngine::pluginHostExecutable(const QString &format) const {
   return executable;
 }
 
+QString MidiEngine::pluginHostClientName(int trackIndex) const {
+  return QStringLiteral("loopmidi-track-%1").arg(trackIndex + 1);
+}
+
+void MidiEngine::connectPluginHostAudio(const QString &clientName) {
+  if (!m_pluginHostAutoConnectAudio)
+    return;
+
+  const QString jackLsp =
+      QStandardPaths::findExecutable(QStringLiteral("jack_lsp"));
+  const QString jackConnect =
+      QStandardPaths::findExecutable(QStringLiteral("jack_connect"));
+  if (jackLsp.isEmpty() || jackConnect.isEmpty())
+    return;
+
+  QProcess lsp;
+  lsp.start(jackLsp);
+  if (!lsp.waitForFinished(1000))
+    return;
+
+  const QStringList ports = QString::fromLocal8Bit(lsp.readAllStandardOutput())
+                                .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+  QStringList pluginOutputs;
+  for (const QString &port : ports) {
+    if (port.startsWith(clientName + QLatin1Char(':')) &&
+        (port.contains(QStringLiteral("out"), Qt::CaseInsensitive) ||
+         port.contains(QStringLiteral("left"), Qt::CaseInsensitive) ||
+         port.contains(QStringLiteral("right"), Qt::CaseInsensitive))) {
+      pluginOutputs << port;
+    }
+  }
+
+  if (pluginOutputs.isEmpty())
+    return;
+
+  const QStringList playbackPorts = {QStringLiteral("system:playback_1"),
+                                     QStringLiteral("system:playback_2")};
+  for (int i = 0; i < pluginOutputs.size(); ++i) {
+    const QString destination =
+        playbackPorts[qMin(i, playbackPorts.size() - 1)];
+    QProcess::execute(jackConnect, QStringList()
+                                       << pluginOutputs[i] << destination);
+  }
+}
+
 void MidiEngine::startPluginHost() {
   stopPluginHost();
 
@@ -615,7 +660,10 @@ void MidiEngine::startPluginHost() {
 
     auto *process = new QProcess(this);
     process->setProgram(hostExecutable);
-    process->setArguments(QStringList() << slot.pluginId);
+    const QString clientName = pluginHostClientName(i);
+    process->setArguments(QStringList()
+                          << QStringLiteral("-n") << clientName
+                          << QStringLiteral("-s") << slot.pluginId);
     process->setProcessChannelMode(QProcess::MergedChannels);
     connect(
         process, &QProcess::errorOccurred, this,
@@ -641,6 +689,9 @@ void MidiEngine::startPluginHost() {
     if (process->waitForStarted(1500)) {
       m_pluginHostProcesses.append(process);
       ++started;
+      QTimer::singleShot(1200, this, [this, clientName]() {
+        connectPluginHostAudio(clientName);
+      });
     } else {
       process->deleteLater();
       emit errorOccurred(
@@ -697,6 +748,14 @@ void MidiEngine::setActiveInstrumentEnabled(bool enabled) {
     return;
   m_instrumentRack[m_activeTrack].enabled = enabled;
   emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setPluginHostAutoConnectAudio(bool enabled) {
+  if (m_pluginHostAutoConnectAudio == enabled)
+    return;
+  m_pluginHostAutoConnectAudio = enabled;
+  emit pluginHostChanged();
   saveSettings();
 }
 
@@ -1494,6 +1553,8 @@ void MidiEngine::loadSettings() {
   m_clearButton = s.value("clearButton", -1).toInt();
   m_tapTempoButton = s.value("tapTempoButton", -1).toInt();
   m_recordAllBeats = s.value("recordAllBeats", true).toBool();
+  m_pluginHostAutoConnectAudio =
+      s.value("pluginHostAutoConnectAudio", true).toBool();
   const QVariantList trackMidiChannels = s.value("trackMidiChannels").toList();
   for (int i = 0;
        i < qMin(m_trackCount, static_cast<int>(trackMidiChannels.size()));
@@ -1550,6 +1611,7 @@ void MidiEngine::saveSettings() const {
   s.setValue("clearButton", m_clearButton);
   s.setValue("tapTempoButton", m_tapTempoButton);
   s.setValue("recordAllBeats", m_recordAllBeats);
+  s.setValue("pluginHostAutoConnectAudio", m_pluginHostAutoConnectAudio);
   QVariantList trackMidiChannels;
   for (int channel : m_trackMidiChannels)
     trackMidiChannels << channel + 1;

@@ -61,8 +61,10 @@ The rack abstraction does not render audio or open plugin UIs yet. It gives the 
 
 ## Opening Surge-XT From LoopMidi
 
-Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv.qt5`, `jalv.gtk`, or `jalv` when available, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this opens separate Surge-XT plugin instances for the enabled tracks.
+Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv.qt5`, `jalv.gtk`, or `jalv` when available, names each JACK client `loopmidi-track-N`, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this opens separate Surge-XT plugin instances for the enabled tracks.
 
-This host layer is process-backed. It launches real LV2 plugin hosts, but JACK/PipeWire MIDI/audio wiring is still external: the host instances appear as JACK clients, and their audio/MIDI ports need to be connected in your JACK/PipeWire patchbay. LoopMidi still sends sequencer MIDI through `LoopMidi Output` with per-track MIDI channels.
+This host layer is process-backed. It launches real LV2 plugin hosts. When `AUTO AUDIO` is enabled, LoopMidi waits briefly for the new JACK clients, scans their output ports with `jack_lsp`, and connects likely audio outputs to `system:playback_1` and `system:playback_2` using `jack_connect`.
+
+JACK/PipeWire MIDI wiring is still external: the host instances appear as JACK clients, and their MIDI inputs need to be connected in your JACK/PipeWire patchbay or through an ALSA-to-JACK MIDI bridge. LoopMidi still sends sequencer MIDI through `LoopMidi Output` with per-track MIDI channels.
 
 The next deeper host step is an in-process LV2 or CLAP engine that renders audio directly inside LoopMidi and automatically routes each track's MIDI into its own plugin instance.
