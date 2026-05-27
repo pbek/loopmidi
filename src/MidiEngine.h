@@ -2,6 +2,7 @@
 
 #include <QMutex>
 #include <QObject>
+#include <QProcess>
 #include <QSettings>
 #include <QString>
 #include <QTimer>
@@ -30,6 +31,7 @@ struct InstrumentSlot {
   QString name;
   QString pluginFormat;
   QString pluginId;
+  QString pluginPath;
   QString presetName;
 };
 
@@ -64,11 +66,17 @@ class MidiEngine : public QObject {
   Q_PROPERTY(
       QString activeInstrumentPluginId READ activeInstrumentPluginId WRITE
           setActiveInstrumentPluginId NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(QString activeInstrumentPluginPath READ activeInstrumentPluginPath
+                 NOTIFY activeInstrumentChanged)
   Q_PROPERTY(
       QString activeInstrumentPresetName READ activeInstrumentPresetName WRITE
           setActiveInstrumentPresetName NOTIFY activeInstrumentChanged)
   Q_PROPERTY(bool activeInstrumentEnabled READ activeInstrumentEnabled WRITE
                  setActiveInstrumentEnabled NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(
+      bool pluginHostRunning READ pluginHostRunning NOTIFY pluginHostChanged)
+  Q_PROPERTY(
+      QString pluginHostStatus READ pluginHostStatus NOTIFY pluginHostChanged)
   Q_PROPERTY(bool recordAllBeats READ recordAllBeats WRITE setRecordAllBeats
                  NOTIFY recordAllBeatsChanged)
   Q_PROPERTY(QStringList inputPorts READ inputPorts NOTIFY portsChanged)
@@ -126,8 +134,11 @@ public:
   QString activeInstrumentName() const;
   QString activeInstrumentFormat() const;
   QString activeInstrumentPluginId() const;
+  QString activeInstrumentPluginPath() const;
   QString activeInstrumentPresetName() const;
   bool activeInstrumentEnabled() const;
+  bool pluginHostRunning() const { return m_pluginHostRunning; }
+  QString pluginHostStatus() const { return m_pluginHostStatus; }
   bool recordAllBeats() const { return m_recordAllBeats; }
   QStringList inputPorts() const { return m_inputPorts; }
   QStringList outputPorts() const { return m_outputPorts; }
@@ -180,6 +191,8 @@ public slots:
   void refreshPorts();
   void scanPlugins();
   void setActiveInstrumentFromAvailablePlugin(int index);
+  void startPluginHost();
+  void stopPluginHost();
   bool saveProject(const QString &filePath);
   bool loadProject(const QString &filePath);
   void startMidiLearn(const QString &target);
@@ -196,6 +209,7 @@ signals:
   void activeInstrumentChanged();
   void instrumentRackChanged();
   void availablePluginsChanged();
+  void pluginHostChanged();
   void recordAllBeatsChanged();
   void portsChanged();
   void selectedInputPortChanged();
@@ -236,6 +250,7 @@ private:
   QStringList pluginSearchPaths(const QString &format) const;
   void addAvailablePlugin(const QString &name, const QString &format,
                           const QString &pluginId, const QString &path);
+  QString pluginHostExecutable(const QString &format) const;
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
   static QString projectNameToFileName(const QString &name);
@@ -251,6 +266,9 @@ private:
   QVector<int> m_trackMidiChannels;
   QVector<InstrumentSlot> m_instrumentRack;
   QVector<AvailablePlugin> m_availablePlugins;
+  QVector<QProcess *> m_pluginHostProcesses;
+  bool m_pluginHostRunning = false;
+  QString m_pluginHostStatus = QStringLiteral("Plugin host stopped");
   int m_trackCount = 4;
   int m_activeTrack = 0;
   int m_maxSteps = 16;

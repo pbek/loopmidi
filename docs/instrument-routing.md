@@ -59,6 +59,10 @@ The current implementation covers step 1 and adds the step 4 data model. Each tr
 
 The rack abstraction does not render audio or open plugin UIs yet. It gives the next LV2 or CLAP host layer a stable place to attach one real plugin instance per track without changing the sequencer or project format again.
 
-## Opening Surge-XT Inside LoopMidi
+## Opening Surge-XT From LoopMidi
 
-Selecting `Surge XT` in the rack is not the same as opening the plugin. Opening it directly inside LoopMidi requires a plugin host engine. The next implementation step is to add an LV2 or CLAP host that can instantiate the selected plugin, feed each track's MIDI into its own plugin instance, render audio in a real-time callback, and show either a native plugin editor or a minimal internal editor.
+Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv.qt5`, `jalv.gtk`, or `jalv` when available, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this opens separate Surge-XT plugin instances for the enabled tracks.
+
+This host layer is process-backed. It launches real LV2 plugin hosts, but JACK/PipeWire MIDI/audio wiring is still external: the host instances appear as JACK clients, and their audio/MIDI ports need to be connected in your JACK/PipeWire patchbay. LoopMidi still sends sequencer MIDI through `LoopMidi Output` with per-track MIDI channels.
+
+The next deeper host step is an in-process LV2 or CLAP engine that renders audio directly inside LoopMidi and automatically routes each track's MIDI into its own plugin instance.
