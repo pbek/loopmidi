@@ -587,6 +587,8 @@ Window {
                             shortcut: "R"
                             midiLearnTarget: engine.recording ? "stop" : "record"
                             midiLearnEngine: engine
+                            midiBinding: engine.recording ? engine.stopButton : engine.recordButton
+                            midiBindingIsNote: engine.recording ? engine.stopButtonIsNote : engine.recordButtonIsNote
                             onClicked: engine.recording ? engine.stopRecording() : engine.startRecording()
                         }
 
@@ -599,6 +601,8 @@ Window {
                             shortcut: "Space"
                             midiLearnTarget: engine.playing ? "stop" : "play"
                             midiLearnEngine: engine
+                            midiBinding: engine.playing ? engine.stopButton : engine.playButton
+                            midiBindingIsNote: engine.playing ? engine.stopButtonIsNote : engine.playButtonIsNote
                             onClicked: engine.playing ? engine.stopPlayback() : engine.startPlayback()
                         }
 
@@ -611,6 +615,8 @@ Window {
                             shortcut: "C"
                             midiLearnTarget: "clear"
                             midiLearnEngine: engine
+                            midiBinding: engine.clearButton
+                            midiBindingIsNote: engine.clearButtonIsNote
                             onClicked: engine.clearSequence()
                         }
 
@@ -622,6 +628,8 @@ Window {
                             iconText: "♩"
                             midiLearnTarget: "tapTempo"
                             midiLearnEngine: engine
+                            midiBinding: engine.tapTempoButton
+                            midiBindingIsNote: engine.tapTempoButtonIsNote
                             onClicked: engine.tapTempo()
                         }
 

@@ -10,10 +10,14 @@ Rectangle {
     property string shortcut: ""
     property string midiLearnTarget: ""
     property var midiLearnEngine: null
+    property int midiBinding: -1
+    property bool midiBindingIsNote: false
     signal clicked
 
     readonly property bool canMidiLearn: midiLearnTarget.length > 0 && midiLearnEngine !== null
     readonly property bool midiLearning: canMidiLearn && midiLearnEngine.midiLearnActive && midiLearnEngine.midiLearnTarget === midiLearnTarget
+    readonly property bool hasMidiBinding: midiBinding >= 0
+    readonly property string midiBindingText: hasMidiBinding ? (midiBindingIsNote ? "Note " : "CC ") + midiBinding : "unassigned"
 
     implicitWidth: 130
     implicitHeight: 44
@@ -37,6 +41,29 @@ Rectangle {
             font.bold: root.active
             color: root.active ? "white" : "#94a3b8"
             anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    Rectangle {
+        visible: root.hasMidiBinding
+        anchors {
+            top: parent.top
+            right: parent.right
+            topMargin: 4
+            rightMargin: 4
+        }
+        width: 16
+        height: 16
+        radius: 8
+        color: "#312e81"
+        border.color: "#a78bfa"
+
+        Text {
+            anchors.centerIn: parent
+            text: "♪"
+            color: "#ddd6fe"
+            font.pixelSize: 10
+            font.bold: true
         }
     }
 
@@ -69,7 +96,7 @@ Rectangle {
         }
 
         MenuItem {
-            text: "MIDI Learn"
+            text: "MIDI Learn (" + root.midiBindingText + ")"
             contentItem: Text {
                 text: parent.text
                 color: "#a78bfa"
