@@ -41,7 +41,9 @@ MidiEngine::MidiEngine(QObject *parent) : QObject(parent) {
   m_chordTimer->setInterval(kChordWindowMs);
   connect(m_chordTimer, &QTimer::timeout, this, &MidiEngine::commitChordStep);
 
-  m_sequence.resize(m_maxSteps);
+  m_tracks.resize(m_trackCount);
+  for (auto &track : m_tracks)
+    track.resize(m_maxSteps);
 
   setupVirtualOutput();
   loadSettings();
@@ -250,21 +252,49 @@ void MidiEngine::setPassthroughEnabled(bool enabled) {
   emit passthroughEnabledChanged();
 }
 
+void MidiEngine::setActiveTrack(int track) {
+  track = qBound(0, track, m_trackCount - 1);
+  if (m_activeTrack == track)
+    return;
+  m_activeTrack = track;
+  if (m_recording)
+    stopRecording();
+  emit activeTrackChanged();
+  emit sequenceChanged();
+}
+
+void MidiEngine::setRecordAllBeats(bool enabled) {
+  if (m_recordAllBeats == enabled)
+    return;
+  if (m_recording)
+    stopRecording();
+  m_recordAllBeats = enabled;
+  emit recordAllBeatsChanged();
+  saveSettings();
+}
+
 void MidiEngine::startRecording() {
   if (m_recording)
     return;
 
-  // Determine start step:
-  // 1. If a cursor has been set manually, use it.
-  // 2. Otherwise find the first empty step.
-  // 3. If all steps are filled, start from 0 (overwrite from beginning).
-  int startStep = m_cursorStep;
-  if (startStep < 0) {
-    startStep = 0;
-    for (int i = 0; i < m_maxSteps; ++i) {
-      if (m_sequence[i].isEmpty()) {
-        startStep = i;
-        break;
+  QVector<ChordStep> &sequence = m_tracks[m_activeTrack];
+
+  int startStep = -1;
+  if (!m_recordAllBeats && m_playing) {
+    startStep = m_currentStep;
+  } else {
+    // Determine start step:
+    // 1. If a cursor has been set manually, use it.
+    // 2. Otherwise find the first empty step.
+    // 3. If all steps are filled, start from 0 (overwrite from beginning).
+    startStep = m_cursorStep;
+    if (startStep < 0) {
+      startStep = 0;
+      for (int i = 0; i < m_maxSteps; ++i) {
+        if (sequence[i].isEmpty()) {
+          startStep = i;
+          break;
+        }
       }
     }
   }
@@ -276,9 +306,13 @@ void MidiEngine::startRecording() {
   }
 
   m_recording = true;
-  m_currentStep = startStep;
+  m_recordStep = startStep;
+  if (!m_playing)
+    m_currentStep = startStep;
   emit recordingChanged();
-  emit currentStepChanged();
+  emit recordingStepChanged();
+  if (!m_playing)
+    emit currentStepChanged();
 }
 
 void MidiEngine::stopRecording() {
@@ -286,11 +320,13 @@ void MidiEngine::stopRecording() {
     return;
   m_chordTimer->stop();
   m_recording = false;
+  m_recordStep = -1;
   if (m_stepRecordTarget >= 0) {
     m_stepRecordTarget = -1;
     emit stepRecordTargetChanged();
   }
   emit recordingChanged();
+  emit recordingStepChanged();
 }
 
 void MidiEngine::startPlayback() {
@@ -317,7 +353,7 @@ void MidiEngine::stopPlayback() {
 
 void MidiEngine::clearSequence() {
   stopAllNotes();
-  for (auto &step : m_sequence)
+  for (auto &step : m_tracks[m_activeTrack])
     step.clear();
   emit sequenceChanged();
 }
@@ -325,7 +361,7 @@ void MidiEngine::clearSequence() {
 void MidiEngine::clearStep(int index) {
   if (index < 0 || index >= m_maxSteps)
     return;
-  m_sequence[index].clear();
+  m_tracks[m_activeTrack][index].clear();
   emit sequenceChanged();
 }
 
@@ -338,13 +374,17 @@ void MidiEngine::recordStep(int index) {
   if (m_recording)
     stopRecording();
   // Clear the target step so the new notes replace it fully
-  m_sequence[index].clear();
+  m_tracks[m_activeTrack][index].clear();
   m_stepRecordTarget = index;
-  m_currentStep = index;
+  m_recordStep = index;
+  if (!m_playing)
+    m_currentStep = index;
   m_recording = true;
   emit stepRecordTargetChanged();
   emit recordingChanged();
-  emit currentStepChanged();
+  emit recordingStepChanged();
+  if (!m_playing)
+    emit currentStepChanged();
   emit sequenceChanged();
 }
 
@@ -504,7 +544,7 @@ bool MidiEngine::triggerBoundAction(int value, bool isNote) {
 
 QVariantList MidiEngine::sequence() const {
   QVariantList result;
-  for (const auto &step : m_sequence) {
+  for (const auto &step : m_tracks[m_activeTrack]) {
     QVariantMap map;
     bool active = !step.isEmpty();
     map["active"] = active;
@@ -577,8 +617,8 @@ void MidiEngine::processIncomingMidi(const std::vector<unsigned char> &msg) {
   // Recording: group Note-On events within kChordWindowMs into the same step
   if (m_recording && isNoteOn) {
     QMutexLocker locker(&m_mutex);
-    if (m_currentStep < m_maxSteps) {
-      m_sequence[m_currentStep].append(
+    if (m_recordStep >= 0 && m_recordStep < m_maxSteps) {
+      m_tracks[m_activeTrack][m_recordStep].append(
           NoteEvent{static_cast<int>(data1), static_cast<int>(data2), channel});
       // All signal emissions and timer ops must happen on the main thread
       QMetaObject::invokeMethod(
@@ -610,18 +650,32 @@ void MidiEngine::commitChordStep() {
   if (m_stepRecordTarget >= 0) {
     m_stepRecordTarget = -1;
     m_recording = false;
+    m_recordStep = -1;
     emit stepRecordTargetChanged();
     emit recordingChanged();
+    emit recordingStepChanged();
     // Don't change m_currentStep — playback owns it now
     return;
   }
 
-  m_currentStep++;
-  emit currentStepChanged();
-  if (m_currentStep >= m_maxSteps) {
+  if (!m_recordAllBeats) {
+    // In current-beat mode, recording follows playback and stays sparse.
+    return;
+  }
+
+  m_recordStep++;
+  emit recordingStepChanged();
+  if (!m_playing) {
+    m_currentStep = m_recordStep;
+    emit currentStepChanged();
+  }
+  if (m_recordStep >= m_maxSteps) {
     m_recording = false;
+    m_recordStep = -1;
     emit recordingChanged();
-    QMetaObject::invokeMethod(this, "startPlayback", Qt::QueuedConnection);
+    emit recordingStepChanged();
+    if (!m_playing)
+      QMetaObject::invokeMethod(this, "startPlayback", Qt::QueuedConnection);
   }
 }
 
@@ -631,19 +685,27 @@ void MidiEngine::advanceStep() {
   if (!m_playing)
     return;
 
+  const int playbackStep = m_currentStep;
+
   // Stop all notes from the previous step
   for (const auto &ev : m_activePlaybackNotes)
     sendNoteOff(ev.note, ev.channel);
   m_activePlaybackNotes.clear();
 
-  const ChordStep &step = m_sequence[m_currentStep];
-  for (const auto &ev : step) {
-    sendNoteOn(ev.note, ev.velocity, ev.channel);
-    m_activePlaybackNotes.append(ev);
+  for (const auto &track : m_tracks) {
+    const ChordStep &step = track[playbackStep];
+    for (const auto &ev : step) {
+      sendNoteOn(ev.note, ev.velocity, ev.channel);
+      m_activePlaybackNotes.append(ev);
+    }
   }
 
-  m_currentStep = (m_currentStep + 1) % m_maxSteps;
+  m_currentStep = (playbackStep + 1) % m_maxSteps;
   emit currentStepChanged();
+  if (m_recording && !m_recordAllBeats && m_recordStep != m_currentStep) {
+    m_recordStep = m_currentStep;
+    emit recordingStepChanged();
+  }
 }
 
 // ── Note send helpers ────────────────────────────────────────────────────────
@@ -702,6 +764,7 @@ void MidiEngine::loadSettings() {
   m_stopButton = s.value("stopButton", -1).toInt();
   m_clearButton = s.value("clearButton", -1).toInt();
   m_tapTempoButton = s.value("tapTempoButton", -1).toInt();
+  m_recordAllBeats = s.value("recordAllBeats", true).toBool();
   m_recordButtonIsNote = s.value("recordButtonIsNote", false).toBool();
   m_playButtonIsNote = s.value("playButtonIsNote", false).toBool();
   m_stopButtonIsNote = s.value("stopButtonIsNote", false).toBool();
@@ -725,6 +788,7 @@ void MidiEngine::saveSettings() const {
   s.setValue("stopButton", m_stopButton);
   s.setValue("clearButton", m_clearButton);
   s.setValue("tapTempoButton", m_tapTempoButton);
+  s.setValue("recordAllBeats", m_recordAllBeats);
   s.setValue("recordButtonIsNote", m_recordButtonIsNote);
   s.setValue("playButtonIsNote", m_playButtonIsNote);
   s.setValue("stopButtonIsNote", m_stopButtonIsNote);

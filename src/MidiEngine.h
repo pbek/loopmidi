@@ -31,7 +31,13 @@ class MidiEngine : public QObject {
   Q_PROPERTY(bool recording READ isRecording NOTIFY recordingChanged)
   Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
   Q_PROPERTY(int currentStep READ currentStep NOTIFY currentStepChanged)
+  Q_PROPERTY(int recordingStep READ recordingStep NOTIFY recordingStepChanged)
   Q_PROPERTY(QVariantList sequence READ sequence NOTIFY sequenceChanged)
+  Q_PROPERTY(int trackCount READ trackCount CONSTANT)
+  Q_PROPERTY(int activeTrack READ activeTrack WRITE setActiveTrack NOTIFY
+                 activeTrackChanged)
+  Q_PROPERTY(bool recordAllBeats READ recordAllBeats WRITE setRecordAllBeats
+                 NOTIFY recordAllBeatsChanged)
   Q_PROPERTY(QStringList inputPorts READ inputPorts NOTIFY portsChanged)
   Q_PROPERTY(QStringList outputPorts READ outputPorts NOTIFY portsChanged)
   Q_PROPERTY(int selectedInputPort READ selectedInputPort WRITE
@@ -71,7 +77,11 @@ public:
   bool isRecording() const { return m_recording; }
   bool isPlaying() const { return m_playing; }
   int currentStep() const { return m_currentStep; }
+  int recordingStep() const { return m_recordStep; }
   QVariantList sequence() const;
+  int trackCount() const { return m_trackCount; }
+  int activeTrack() const { return m_activeTrack; }
+  bool recordAllBeats() const { return m_recordAllBeats; }
   QStringList inputPorts() const { return m_inputPorts; }
   QStringList outputPorts() const { return m_outputPorts; }
   int selectedInputPort() const { return m_selectedInputPort; }
@@ -97,6 +107,8 @@ public:
   void setSelectedOutputPort(int port);
   void setBpm(double bpm);
   void setPassthroughEnabled(bool enabled);
+  void setActiveTrack(int track);
+  void setRecordAllBeats(bool enabled);
 
 public slots:
   void startRecording();
@@ -116,7 +128,10 @@ signals:
   void recordingChanged();
   void playingChanged();
   void currentStepChanged();
+  void recordingStepChanged();
   void sequenceChanged();
+  void activeTrackChanged();
+  void recordAllBeatsChanged();
   void portsChanged();
   void selectedInputPortChanged();
   void selectedOutputPortChanged();
@@ -155,13 +170,16 @@ private:
   std::unique_ptr<RtMidiOut> m_midiOut;   // virtual output (LoopMidi port)
   std::unique_ptr<RtMidiOut> m_midiOutHW; // hardware output
 
-  // Sequence: m_maxSteps steps, each step is a chord (list of simultaneous
-  // notes)
-  QVector<ChordStep> m_sequence;
+  // Tracks: each track has m_maxSteps chord steps.
+  QVector<QVector<ChordStep>> m_tracks;
+  int m_trackCount = 4;
+  int m_activeTrack = 0;
   int m_maxSteps = 16;
   bool m_recording = false;
   bool m_playing = false;
   int m_currentStep = -1;
+  int m_recordStep = -1;
+  bool m_recordAllBeats = true;
   double m_bpm = 120.0;
 
   QTimer *m_stepTimer = nullptr;

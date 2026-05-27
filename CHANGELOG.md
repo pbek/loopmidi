@@ -4,18 +4,19 @@ All notable changes to LoopMidi are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
----
-
 ## [0.3.0] — 2026-05-26
 
 ### Added
 
 - Tap Tempo metronome button: tap a beat in the transport bar to set BPM from the average interval of recent taps.
 - MIDI Learn support for Tap Tempo, including learned CC buttons and note/pad buttons.
+- Multi-track sequencing with four selectable recording targets. The visible step grid edits the active track, while playback layers all tracks together.
+- Recording mode switch for choosing between sequential all-beats recording and sparse current-beat overdubbing while playback is running.
 
 ### Fixed
 
 - Learned MIDI note/pad bindings now trigger transport actions instead of only being accepted during learning.
+- Current-beat recording now targets the displayed playback cursor step instead of the previously played beat.
 
 ---
 

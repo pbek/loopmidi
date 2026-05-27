@@ -453,7 +453,7 @@ Window {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: "SEQUENCE"
+                                text: "TRACK " + (engine.activeTrack + 1)
                                 font.pixelSize: 12
                                 font.letterSpacing: 3
                                 color: root.textMuted
@@ -464,9 +464,9 @@ Window {
                             Text {
                                 text: {
                                     if (engine.recording)
-                                        return "● RECORDING — play notes on your keyboard";
+                                        return engine.recordAllBeats ? "● RECORDING ALL BEATS TO TRACK " + (engine.activeTrack + 1) : "● RECORDING CURRENT BEAT TO TRACK " + (engine.activeTrack + 1);
                                     if (engine.playing)
-                                        return "▶ PLAYING";
+                                        return "▶ PLAYING ALL TRACKS";
                                     if (engine.cursorStep >= 0)
                                         return "CURSOR — step " + (engine.cursorStep + 1) + "  (click again to clear)";
                                     return "STOPPED — click a step to set cursor";
@@ -485,6 +485,88 @@ Window {
                             }
                         }
 
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Text {
+                                text: "RECORD TARGET"
+                                font.pixelSize: 10
+                                font.letterSpacing: 2
+                                color: root.textMuted
+                            }
+
+                            Repeater {
+                                model: engine.trackCount
+                                delegate: Rectangle {
+                                    property bool selected: index === engine.activeTrack
+                                    width: 86
+                                    height: 30
+                                    radius: 8
+                                    color: selected ? Qt.rgba(0.49, 0.23, 0.93, 0.28) : root.cardBg
+                                    border.color: selected ? root.accentLight : root.stepBorder
+                                    border.width: selected ? 2 : 1
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "Track " + (index + 1)
+                                        font.pixelSize: 12
+                                        font.bold: parent.selected
+                                        color: parent.selected ? root.accentLight : root.textMuted
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: engine.activeTrack = index
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 1
+                                height: 24
+                                color: root.stepBorder
+                            }
+
+                            Text {
+                                text: engine.recordAllBeats ? "ALL BEATS" : "CURRENT BEAT"
+                                font.pixelSize: 10
+                                font.letterSpacing: 2
+                                color: engine.recordAllBeats ? root.accentLight : "#0ea5e9"
+                            }
+
+                            Switch {
+                                checked: engine.recordAllBeats
+                                onCheckedChanged: engine.recordAllBeats = checked
+                                indicator: Rectangle {
+                                    implicitWidth: 44
+                                    implicitHeight: 22
+                                    radius: 11
+                                    color: parent.checked ? root.accent : "#0ea5e9"
+                                    border.color: parent.checked ? root.accentLight : "#38bdf8"
+                                    Rectangle {
+                                        x: parent.parent.checked ? parent.width - width - 2 : 2
+                                        y: 2
+                                        width: 18
+                                        height: 18
+                                        radius: 9
+                                        color: "white"
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 150
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
+                        }
+
                         // Step grid
                         GridLayout {
                             id: stepGrid
@@ -500,7 +582,7 @@ Window {
                                     stepIndex: index
                                     stepData: engine.sequence.length > index ? engine.sequence[index] : null
                                     isCurrentStep: engine.currentStep === index
-                                    isRecordingStep: engine.recording && engine.currentStep === index
+                                    isRecordingStep: engine.recording && engine.recordingStep === index
                                     isCursorStep: engine.cursorStep === index
                                     accentColor: root.accent
                                     accentLightColor: root.accentLight
@@ -608,7 +690,7 @@ Window {
 
                         // Clear
                         TransportButton {
-                            label: "Clear"
+                            label: "Clear Track"
                             activeColor: "#f97316"
                             active: false
                             iconText: "✕"

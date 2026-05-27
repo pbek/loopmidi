@@ -1,6 +1,6 @@
 # LoopMidi
 
-**LoopMidi** is a Qt/QML MIDI loop sequencer. It records a session of up to 16 notes from any MIDI keyboard (e.g. Arturia MiniLab 3) and plays them back as a continuous loop through a **virtual MIDI port** that any DAW or synthesizer (e.g. Surge-XT) can subscribe to.
+**LoopMidi** is a Qt/QML MIDI loop sequencer. It records up to four 16-step MIDI tracks from any MIDI keyboard (e.g. Arturia MiniLab 3) and plays them back together as a continuous loop through a **virtual MIDI port** that any DAW or synthesizer (e.g. Surge-XT) can subscribe to.
 
 ---
 
@@ -8,7 +8,9 @@
 
 | Feature                 | Details                                                                            |
 | ----------------------- | ---------------------------------------------------------------------------------- |
-| **16-step recorder**    | Play up to 16 notes; recording stops automatically and playback starts             |
+| **4-track recorder**    | Pick an active record target and edit its 16-step sequence                         |
+| **Layered playback**    | All tracks play together from the same transport                                   |
+| **Record modes**        | Record every beat in sequence or overdub only the currently playing beat           |
 | **Virtual MIDI output** | Exposes "LoopMidi Output" — connect Surge-XT or any app to it                      |
 | **Passthrough**         | Notes from your keyboard are forwarded live to the virtual port while playing/idle |
 | **Adjustable BPM**      | 40 – 240 BPM slider for playback speed                                             |
@@ -46,7 +48,7 @@ cmake --build build -j$(nproc)
 2. **Select input port** — choose `Arturia MiniLab 3` in the left sidebar.
 3. **Open Surge-XT** → MIDI settings → subscribe to `LoopMidi Output`.
 4. Enable **Passthrough** (on by default) so live notes go straight to Surge-XT.
-5. Press **Record** (or `R`) and play 16 notes on the MiniLab.  
+5. Choose the active track and record mode, press **Record** (or `R`), and play notes on the MiniLab.  
    Recording stops automatically; playback begins immediately.
 6. Surge-XT will receive the looping notes and play them back.
 
