@@ -1,12 +1,22 @@
 #include "MidiEngine.h"
+#include <QDate>
 #include <QDateTime>
 #include <QDebug>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMutexLocker>
+#include <QRegularExpression>
+#include <QUrl>
 
 static const int kChordWindowMs =
     30; // notes within this window are grouped into one step
 static const int kTapTempoResetMs = 2000;
 static const int kTapTempoMaxTaps = 4;
+static const char *kProjectFormat = "LoopMidiProject";
+static const int kProjectVersion = 1;
 
 static void midiCallbackStatic(double deltatime,
                                std::vector<unsigned char> *message,
@@ -18,6 +28,8 @@ static void midiCallbackStatic(double deltatime,
 }
 
 MidiEngine::MidiEngine(QObject *parent) : QObject(parent) {
+  m_projectName = defaultProjectName();
+
   try {
     m_midiIn = std::make_unique<RtMidiIn>();
     m_midiOut = std::make_unique<RtMidiOut>();
@@ -245,6 +257,19 @@ void MidiEngine::setBpm(double bpm) {
   saveSettings();
 }
 
+void MidiEngine::setProjectName(const QString &name) {
+  const QString trimmed = name.trimmed();
+  const QString nextName = trimmed.isEmpty() ? defaultProjectName() : trimmed;
+  if (m_projectName == nextName)
+    return;
+  m_projectName = nextName;
+  emit projectNameChanged();
+}
+
+QString MidiEngine::projectFileName() const {
+  return projectNameToFileName(m_projectName);
+}
+
 void MidiEngine::setPassthroughEnabled(bool enabled) {
   if (m_passthroughEnabled == enabled)
     return;
@@ -356,6 +381,201 @@ void MidiEngine::clearSequence() {
   for (auto &step : m_tracks[m_activeTrack])
     step.clear();
   emit sequenceChanged();
+}
+
+QString MidiEngine::normalizedProjectPath(const QString &filePath) const {
+  QUrl url(filePath);
+  QString path = url.isLocalFile() ? url.toLocalFile() : filePath;
+  if (path.startsWith(QStringLiteral("file://")))
+    path = QUrl(path).toLocalFile();
+  return path;
+}
+
+QString MidiEngine::defaultProjectName() {
+  return QStringLiteral("LoopMidi %1")
+      .arg(QDate::currentDate().toString(Qt::ISODate));
+}
+
+QString MidiEngine::projectNameToFileName(const QString &name) {
+  QString fileName = name.trimmed();
+  if (fileName.isEmpty())
+    fileName = defaultProjectName();
+
+  fileName.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]+")),
+                   QStringLiteral("-"));
+  fileName.replace(QRegularExpression(QStringLiteral("\\s+")),
+                   QStringLiteral(" "));
+  fileName = fileName.trimmed();
+
+  if (fileName.isEmpty())
+    fileName = defaultProjectName();
+  if (!fileName.endsWith(QStringLiteral(".loopmidi"), Qt::CaseInsensitive))
+    fileName += QStringLiteral(".loopmidi");
+  return fileName;
+}
+
+bool MidiEngine::saveProject(const QString &filePath) {
+  QString path = normalizedProjectPath(filePath);
+  if (path.isEmpty()) {
+    emit errorOccurred(QStringLiteral("Choose a project file to save."));
+    return false;
+  }
+
+  if (QFileInfo(path).suffix().isEmpty())
+    path += QStringLiteral(".loopmidi");
+
+  QJsonObject root;
+  root["format"] = kProjectFormat;
+  root["version"] = kProjectVersion;
+  root["name"] = m_projectName;
+  root["bpm"] = m_bpm;
+  root["activeTrack"] = m_activeTrack;
+  root["recordAllBeats"] = m_recordAllBeats;
+  root["trackCount"] = m_trackCount;
+  root["stepsPerTrack"] = m_maxSteps;
+
+  QJsonArray tracks;
+  {
+    QMutexLocker locker(&m_mutex);
+    for (const auto &track : m_tracks) {
+      QJsonArray steps;
+      for (const auto &step : track) {
+        QJsonArray notes;
+        for (const auto &ev : step) {
+          QJsonObject note;
+          note["note"] = ev.note;
+          note["velocity"] = ev.velocity;
+          note["channel"] = ev.channel;
+          notes.append(note);
+        }
+        steps.append(notes);
+      }
+      tracks.append(steps);
+    }
+  }
+  root["tracks"] = tracks;
+
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    emit errorOccurred(QStringLiteral("Could not save project: ") +
+                       file.errorString());
+    return false;
+  }
+
+  file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+  file.close();
+
+  if (m_projectFilePath != path) {
+    m_projectFilePath = path;
+    emit projectFilePathChanged();
+  }
+  return true;
+}
+
+bool MidiEngine::loadProject(const QString &filePath) {
+  const QString path = normalizedProjectPath(filePath);
+  if (path.isEmpty()) {
+    emit errorOccurred(QStringLiteral("Choose a project file to load."));
+    return false;
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    emit errorOccurred(QStringLiteral("Could not load project: ") +
+                       file.errorString());
+    return false;
+  }
+
+  QJsonParseError parseError;
+  const QJsonDocument doc =
+      QJsonDocument::fromJson(file.readAll(), &parseError);
+  if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+    emit errorOccurred(QStringLiteral("Invalid project file: ") +
+                       parseError.errorString());
+    return false;
+  }
+
+  const QJsonObject root = doc.object();
+  if (root.value("format").toString() != QString::fromLatin1(kProjectFormat)) {
+    emit errorOccurred(QStringLiteral("Invalid LoopMidi project file."));
+    return false;
+  }
+
+  const QJsonArray tracksJson = root.value("tracks").toArray();
+  if (tracksJson.isEmpty()) {
+    emit errorOccurred(QStringLiteral("Project file contains no tracks."));
+    return false;
+  }
+
+  QVector<QVector<ChordStep>> loadedTracks(m_trackCount);
+  for (auto &track : loadedTracks)
+    track.resize(m_maxSteps);
+
+  for (int trackIndex = 0;
+       trackIndex < qMin(m_trackCount, static_cast<int>(tracksJson.size()));
+       ++trackIndex) {
+    const QJsonArray stepsJson = tracksJson[trackIndex].toArray();
+    for (int stepIndex = 0;
+         stepIndex < qMin(m_maxSteps, static_cast<int>(stepsJson.size()));
+         ++stepIndex) {
+      const QJsonArray notesJson = stepsJson[stepIndex].toArray();
+      for (const QJsonValue &noteValue : notesJson) {
+        const QJsonObject note = noteValue.toObject();
+        NoteEvent ev;
+        ev.note = qBound(0, note.value("note").toInt(), 127);
+        ev.velocity = qBound(0, note.value("velocity").toInt(), 127);
+        ev.channel = qBound(0, note.value("channel").toInt(), 15);
+        loadedTracks[trackIndex][stepIndex].append(ev);
+      }
+    }
+  }
+
+  stopRecording();
+  stopPlayback();
+  m_chordTimer->stop();
+  stopAllNotes();
+
+  {
+    QMutexLocker locker(&m_mutex);
+    m_tracks = loadedTracks;
+  }
+
+  const QString loadedName = root.value("name").toString(defaultProjectName());
+  const QString nextName = loadedName.trimmed().isEmpty()
+                               ? defaultProjectName()
+                               : loadedName.trimmed();
+  const bool nameChanged = m_projectName != nextName;
+  const int nextActiveTrack =
+      qBound(0, root.value("activeTrack").toInt(0), m_trackCount - 1);
+  const bool activeTrackChangedNow = m_activeTrack != nextActiveTrack;
+  const bool recordAllBeatsChangedNow =
+      m_recordAllBeats != root.value("recordAllBeats").toBool(true);
+  const bool cursorChanged = m_cursorStep != -1;
+
+  m_projectName = nextName;
+  m_bpm = qBound(40.0, root.value("bpm").toDouble(120.0), 240.0);
+  m_activeTrack = nextActiveTrack;
+  m_recordAllBeats = root.value("recordAllBeats").toBool(true);
+  m_cursorStep = -1;
+  m_recordStep = -1;
+  m_stepRecordTarget = -1;
+
+  if (m_projectFilePath != path) {
+    m_projectFilePath = path;
+    emit projectFilePathChanged();
+  }
+  if (nameChanged)
+    emit projectNameChanged();
+  emit bpmChanged();
+  if (activeTrackChangedNow)
+    emit activeTrackChanged();
+  if (recordAllBeatsChangedNow)
+    emit recordAllBeatsChanged();
+  if (cursorChanged)
+    emit cursorStepChanged();
+  emit sequenceChanged();
+  saveSettings();
+  return true;
 }
 
 void MidiEngine::clearStep(int index) {

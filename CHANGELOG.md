@@ -4,6 +4,15 @@ All notable changes to LoopMidi are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Project save/load support via `.loopmidi` JSON files, including project name, BPM, record mode, active track, and all sequenced notes across all tracks.
+- New projects now default to a dated name, and Save As pre-fills the filename from the current project name.
+
+---
+
 ## [0.3.0] — 2026-05-26
 
 ### Added

@@ -1,6 +1,8 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Dialogs
+import QtCore
 import QtQuick.Layouts 1.15
 import LoopMidi 1.0
 
@@ -76,6 +78,31 @@ Window {
         function show(m) {
             errorBannerRect.show(m);
         }
+    }
+
+    FileDialog {
+        id: saveProjectDialog
+        title: "Save LoopMidi Project"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "loopmidi"
+        nameFilters: ["LoopMidi projects (*.loopmidi)", "JSON files (*.json)", "All files (*)"]
+        onAccepted: engine.saveProject(selectedFile.toString())
+    }
+
+    function openSaveProjectDialog() {
+        var folder = StandardPaths.writableLocation(StandardPaths.DocumentsLocation);
+        if (folder.length === 0)
+            folder = StandardPaths.writableLocation(StandardPaths.HomeLocation);
+        saveProjectDialog.currentFile = folder + "/" + engine.projectFileName;
+        saveProjectDialog.open();
+    }
+
+    FileDialog {
+        id: loadProjectDialog
+        title: "Load LoopMidi Project"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["LoopMidi projects (*.loopmidi *.json)", "All files (*)"]
+        onAccepted: engine.loadProject(selectedFile.toString())
     }
 
     // ── Main layout ─────────────────────────────────────────────────────────
@@ -192,7 +219,7 @@ Window {
                         fill: parent
                         margins: 16
                     }
-                    spacing: 16
+                    spacing: 8
 
                     SectionLabel {
                         labelText: "MIDI PORTS"
@@ -319,6 +346,82 @@ Window {
                         label: "Refresh Ports"
                         iconText: "↺"
                         onClicked: engine.refreshPorts()
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: root.stepBorder
+                    }
+
+                    SectionLabel {
+                        labelText: "PROJECT"
+                    }
+
+                    Column {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Text {
+                            text: "Name"
+                            color: root.textMuted
+                            font.pixelSize: 11
+                        }
+                        TextField {
+                            id: projectNameField
+                            width: parent.width
+                            text: engine.projectName
+                            selectByMouse: true
+                            font.pixelSize: 12
+                            color: root.textPrimary
+                            placeholderText: "Project name"
+                            placeholderTextColor: root.textMuted
+                            onEditingFinished: engine.projectName = text
+                            Connections {
+                                target: engine
+                                function onProjectNameChanged() {
+                                    if (!projectNameField.activeFocus)
+                                        projectNameField.text = engine.projectName;
+                                }
+                            }
+                            background: Rectangle {
+                                color: root.cardBg
+                                border.color: projectNameField.activeFocus ? root.accentLight : root.stepBorder
+                                radius: 6
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        LoopButton {
+                            Layout.fillWidth: true
+                            label: "Save"
+                            iconText: "↓"
+                            onClicked: {
+                                engine.projectName = projectNameField.text;
+                                if (engine.projectFilePath.length > 0)
+                                    engine.saveProject(engine.projectFilePath);
+                                else
+                                    root.openSaveProjectDialog();
+                            }
+                        }
+                        LoopButton {
+                            Layout.fillWidth: true
+                            label: "Save As"
+                            iconText: "↧"
+                            onClicked: {
+                                engine.projectName = projectNameField.text;
+                                root.openSaveProjectDialog();
+                            }
+                        }
+                    }
+
+                    LoopButton {
+                        Layout.fillWidth: true
+                        label: "Load Project"
+                        iconText: "↑"
+                        onClicked: loadProjectDialog.open()
                     }
 
                     Rectangle {

@@ -45,6 +45,12 @@ class MidiEngine : public QObject {
   Q_PROPERTY(int selectedOutputPort READ selectedOutputPort WRITE
                  setSelectedOutputPort NOTIFY selectedOutputPortChanged)
   Q_PROPERTY(double bpm READ bpm WRITE setBpm NOTIFY bpmChanged)
+  Q_PROPERTY(QString projectName READ projectName WRITE setProjectName NOTIFY
+                 projectNameChanged)
+  Q_PROPERTY(QString projectFilePath READ projectFilePath NOTIFY
+                 projectFilePathChanged)
+  Q_PROPERTY(
+      QString projectFileName READ projectFileName NOTIFY projectNameChanged)
   Q_PROPERTY(
       bool midiLearnActive READ midiLearnActive NOTIFY midiLearnActiveChanged)
   Q_PROPERTY(QString midiLearnTarget READ midiLearnTarget NOTIFY
@@ -87,6 +93,9 @@ public:
   int selectedInputPort() const { return m_selectedInputPort; }
   int selectedOutputPort() const { return m_selectedOutputPort; }
   double bpm() const { return m_bpm; }
+  QString projectName() const { return m_projectName; }
+  QString projectFilePath() const { return m_projectFilePath; }
+  QString projectFileName() const;
   bool midiLearnActive() const { return m_midiLearnActive; }
   QString midiLearnTarget() const { return m_midiLearnTargetStr; }
   bool passthroughEnabled() const { return m_passthroughEnabled; }
@@ -106,6 +115,7 @@ public:
   void setSelectedInputPort(int port);
   void setSelectedOutputPort(int port);
   void setBpm(double bpm);
+  void setProjectName(const QString &name);
   void setPassthroughEnabled(bool enabled);
   void setActiveTrack(int track);
   void setRecordAllBeats(bool enabled);
@@ -121,6 +131,8 @@ public slots:
   void setCursorStep(int index);
   void tapTempo();
   void refreshPorts();
+  bool saveProject(const QString &filePath);
+  bool loadProject(const QString &filePath);
   void startMidiLearn(const QString &target);
   void cancelMidiLearn();
 
@@ -136,6 +148,8 @@ signals:
   void selectedInputPortChanged();
   void selectedOutputPortChanged();
   void bpmChanged();
+  void projectNameChanged();
+  void projectFilePathChanged();
   void midiLearnActiveChanged();
   void midiLearnTargetChanged();
   void passthroughEnabledChanged();
@@ -163,6 +177,9 @@ private:
   void saveSettings() const;
   void tryRestoreSavedPorts();
   bool triggerBoundAction(int value, bool isNote);
+  QString normalizedProjectPath(const QString &filePath) const;
+  static QString defaultProjectName();
+  static QString projectNameToFileName(const QString &name);
   static void midiCallback(double deltatime,
                            std::vector<unsigned char> *message, void *userData);
 
@@ -181,6 +198,8 @@ private:
   int m_recordStep = -1;
   bool m_recordAllBeats = true;
   double m_bpm = 120.0;
+  QString m_projectName;
+  QString m_projectFilePath;
 
   QTimer *m_stepTimer = nullptr;
   QTimer *m_hotplugTimer = nullptr;

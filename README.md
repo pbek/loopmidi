@@ -14,6 +14,7 @@
 | **Virtual MIDI output** | Exposes "LoopMidi Output" — connect Surge-XT or any app to it                      |
 | **Passthrough**         | Notes from your keyboard are forwarded live to the virtual port while playing/idle |
 | **Adjustable BPM**      | 40 – 240 BPM slider for playback speed                                             |
+| **Project files**       | Save/load named `.loopmidi` projects with BPM and all track data                   |
 | **MIDI Learn**          | Bind transport buttons to any CC knob or pad from each button's right-click menu   |
 | **Keyboard shortcuts**  | `R` record, `Space` play/stop, `C` clear, `Esc` stop all                           |
 | **Beautiful dark UI**   | Step grid with velocity bars, live note visualizer, animated indicators            |
