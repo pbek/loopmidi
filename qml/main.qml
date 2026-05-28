@@ -952,6 +952,31 @@ Window {
 
                                     Column {
                                         spacing: 5
+                                        Layout.preferredWidth: 96
+                                        Text {
+                                            text: "Program"
+                                            font.pixelSize: 10
+                                            color: root.textMuted
+                                        }
+                                        SpinBox {
+                                            id: instrumentProgramSpinBox
+                                            from: 0
+                                            to: 2047
+                                            value: engine.activeInstrumentProgram
+                                            editable: true
+                                            width: parent.width
+                                            onValueModified: engine.activeInstrumentProgram = value
+                                            Connections {
+                                                target: engine
+                                                function onActiveInstrumentChanged() {
+                                                    instrumentProgramSpinBox.value = engine.activeInstrumentProgram;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Column {
+                                        spacing: 5
                                         Layout.preferredWidth: 150
                                         Text {
                                             text: "Slot name"

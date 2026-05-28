@@ -61,7 +61,9 @@ The rack abstraction does not render audio or open plugin UIs yet. It gives the 
 
 ## Opening Surge-XT From LoopMidi
 
-Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv.qt5`, `jalv.gtk`, or `jalv` when available, names each JACK client `loopmidi-track-N`, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this starts separate Surge-XT plugin instances for the enabled tracks.
+Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv`, names each JACK client `loopmidi-track-N`, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this starts separate Surge-XT plugin instances for the enabled tracks.
+
+Each track has a `Program` value. For Surge-XT LV2 slots, LoopMidi writes a generated LV2 state bundle with that program number and starts `jalv` with `-l <state-dir>`. Changing the program takes effect the next time the plugin host is restarted.
 
 LoopMidi launches `jalv` headless by default. This avoids Surge-XT's native LV2 UI crashing with X11 `BadWindow` errors on some Wayland/XWayland setups. The plugin still runs as an audio/MIDI host client; use a patchbay such as `qpwgraph` for routing. A dedicated in-app plugin UI remains a future in-process host task.
 

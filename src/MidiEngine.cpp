@@ -328,6 +328,7 @@ InstrumentSlot MidiEngine::defaultInstrumentSlot(int trackIndex) const {
   slot.pluginId = QStringLiteral("Surge XT");
   slot.pluginPath.clear();
   slot.presetName = QStringLiteral("Init");
+  slot.program = 0;
   return slot;
 }
 
@@ -349,6 +350,7 @@ QVariantList MidiEngine::instrumentRack() const {
     map["pluginId"] = slot.pluginId;
     map["pluginPath"] = slot.pluginPath;
     map["presetName"] = slot.presetName;
+    map["program"] = slot.program;
     result << map;
   }
   return result;
@@ -604,6 +606,10 @@ QString MidiEngine::activeInstrumentPresetName() const {
   return activeInstrumentSlot().presetName;
 }
 
+int MidiEngine::activeInstrumentProgram() const {
+  return activeInstrumentSlot().program;
+}
+
 bool MidiEngine::activeInstrumentEnabled() const {
   return activeInstrumentSlot().enabled;
 }
@@ -672,6 +678,70 @@ QString MidiEngine::pluginHostClientName(int trackIndex) const {
 
 QString MidiEngine::pwJackExecutable() const {
   return QStandardPaths::findExecutable(QStringLiteral("pw-jack"));
+}
+
+QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
+  if (trackIndex < 0 || trackIndex >= m_instrumentRack.size())
+    return QString();
+
+  const InstrumentSlot &slot = m_instrumentRack[trackIndex];
+  if (!slot.pluginId.contains(QStringLiteral("surge"), Qt::CaseInsensitive))
+    return QString();
+
+  QString root =
+      QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+  if (root.isEmpty())
+    root = QDir::tempPath() + QStringLiteral("/loopmidi");
+
+  const QString stateDir =
+      root +
+      QStringLiteral("/surge-program-state/track-%1").arg(trackIndex + 1);
+  QDir dir;
+  if (!dir.mkpath(stateDir))
+    return QString();
+
+  const QString stateUri =
+      QStringLiteral("urn:loopmidi:surge-program-track-%1").arg(trackIndex + 1);
+  const QString manifestPath = stateDir + QStringLiteral("/manifest.ttl");
+  const QString statePath = stateDir + QStringLiteral("/state.ttl");
+
+  QFile manifest(manifestPath);
+  if (!manifest.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                     QIODevice::Text))
+    return QString();
+  manifest.write(
+      QStringLiteral(
+          "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+          "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
+          "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\n"
+          "<%1>\n"
+          "    a pset:Preset ;\n"
+          "    rdfs:seeAlso <state.ttl> ;\n"
+          "    lv2:appliesTo <%2> .\n")
+          .arg(stateUri, slot.pluginId)
+          .toUtf8());
+
+  QFile state(statePath);
+  if (!state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+    return QString();
+  state.write(
+      QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                     "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
+                     "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+                     "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
+                     "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
+                     "<%1>\n"
+                     "    a pset:Preset ;\n"
+                     "    lv2:appliesTo <%2> ;\n"
+                     "    rdfs:label \"Program %3\" ;\n"
+                     "    state:state [\n"
+                     "        <%2:Program> \"%3\"^^xsd:int\n"
+                     "    ] .\n")
+          .arg(stateUri, slot.pluginId)
+          .arg(slot.program)
+          .toUtf8());
+
+  return stateDir;
 }
 
 bool MidiEngine::jackServerAvailable(QString *errorMessage) const {
@@ -867,7 +937,11 @@ void MidiEngine::startPluginHost() {
     QStringList hostArgs;
     if (!pwJack.isEmpty())
       hostArgs << hostExecutable;
-    hostArgs << QStringLiteral("-n") << clientName << slot.pluginId;
+    hostArgs << QStringLiteral("-n") << clientName;
+    const QString stateDir = writeSurgeProgramState(i);
+    if (!stateDir.isEmpty())
+      hostArgs << QStringLiteral("-l") << stateDir;
+    hostArgs << slot.pluginId;
     process->setArguments(hostArgs);
     process->setProcessChannelMode(QProcess::MergedChannels);
     connect(process, &QProcess::readyReadStandardOutput, this,
@@ -971,6 +1045,17 @@ void MidiEngine::setActiveInstrumentPresetName(const QString &presetName) {
   if (m_instrumentRack[m_activeTrack].presetName == nextPresetName)
     return;
   m_instrumentRack[m_activeTrack].presetName = nextPresetName;
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentProgram(int program) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+  const int nextProgram = qBound(0, program, 2047);
+  if (m_instrumentRack[m_activeTrack].program == nextProgram)
+    return;
+  m_instrumentRack[m_activeTrack].program = nextProgram;
   emitInstrumentChanges();
   saveSettings();
 }
@@ -1153,6 +1238,7 @@ bool MidiEngine::saveProject(const QString &filePath) {
     slotJson["pluginId"] = slot.pluginId;
     slotJson["pluginPath"] = slot.pluginPath;
     slotJson["presetName"] = slot.presetName;
+    slotJson["program"] = slot.program;
     instrumentRack.append(slotJson);
   }
   root["instrumentRack"] = instrumentRack;
@@ -1267,6 +1353,8 @@ bool MidiEngine::loadProject(const QString &filePath) {
         slotJson.value("pluginPath").toString(slot.pluginPath).trimmed();
     slot.presetName =
         slotJson.value("presetName").toString(slot.presetName).trimmed();
+    slot.program =
+        qBound(0, slotJson.value("program").toInt(slot.program), 2047);
     if (slot.name.isEmpty())
       slot.name = defaultInstrumentSlot(i).name;
     if (slot.pluginFormat.isEmpty())
@@ -1314,7 +1402,8 @@ bool MidiEngine::loadProject(const QString &filePath) {
           current.pluginFormat != loaded.pluginFormat ||
           current.pluginId != loaded.pluginId ||
           current.pluginPath != loaded.pluginPath ||
-          current.presetName != loaded.presetName) {
+          current.presetName != loaded.presetName ||
+          current.program != loaded.program) {
         instrumentRackChangedNow = true;
         break;
       }
@@ -1811,6 +1900,8 @@ void MidiEngine::loadSettings() {
         slotMap.value("pluginPath", slot.pluginPath).toString().trimmed();
     slot.presetName =
         slotMap.value("presetName", slot.presetName).toString().trimmed();
+    slot.program =
+        qBound(0, slotMap.value("program", slot.program).toInt(), 2047);
     if (slot.name.isEmpty())
       slot.name = defaultInstrumentSlot(i).name;
     if (slot.pluginFormat.isEmpty())
@@ -1859,6 +1950,7 @@ void MidiEngine::saveSettings() const {
     slotMap["pluginId"] = slot.pluginId;
     slotMap["pluginPath"] = slot.pluginPath;
     slotMap["presetName"] = slot.presetName;
+    slotMap["program"] = slot.program;
     instrumentRack << slotMap;
   }
   s.setValue("instrumentRack", instrumentRack);

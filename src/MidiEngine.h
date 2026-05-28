@@ -33,6 +33,7 @@ struct InstrumentSlot {
   QString pluginId;
   QString pluginPath;
   QString presetName;
+  int program = 0;
 };
 
 struct AvailablePlugin {
@@ -71,6 +72,8 @@ class MidiEngine : public QObject {
   Q_PROPERTY(
       QString activeInstrumentPresetName READ activeInstrumentPresetName WRITE
           setActiveInstrumentPresetName NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(int activeInstrumentProgram READ activeInstrumentProgram WRITE
+                 setActiveInstrumentProgram NOTIFY activeInstrumentChanged)
   Q_PROPERTY(bool activeInstrumentEnabled READ activeInstrumentEnabled WRITE
                  setActiveInstrumentEnabled NOTIFY activeInstrumentChanged)
   Q_PROPERTY(
@@ -138,6 +141,7 @@ public:
   QString activeInstrumentPluginId() const;
   QString activeInstrumentPluginPath() const;
   QString activeInstrumentPresetName() const;
+  int activeInstrumentProgram() const;
   bool activeInstrumentEnabled() const;
   bool pluginHostRunning() const { return m_pluginHostRunning; }
   QString pluginHostStatus() const { return m_pluginHostStatus; }
@@ -180,6 +184,7 @@ public:
   void setActiveInstrumentFormat(const QString &format);
   void setActiveInstrumentPluginId(const QString &pluginId);
   void setActiveInstrumentPresetName(const QString &presetName);
+  void setActiveInstrumentProgram(int program);
   void setActiveInstrumentEnabled(bool enabled);
   void setPluginHostAutoConnectAudio(bool enabled);
   void setRecordAllBeats(bool enabled);
@@ -261,6 +266,7 @@ private:
   QString pluginHostExecutable(const QString &format) const;
   QString pluginHostClientName(int trackIndex) const;
   QString pwJackExecutable() const;
+  QString writeSurgeProgramState(int trackIndex) const;
   void appendPluginHostOutput(QProcess *process, int trackIndex,
                               const QString &output);
   void connectPluginHostAudio(const QString &clientName);

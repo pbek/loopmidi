@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Plugin host instances now use stable per-track JACK client names and can auto-connect detected audio outputs to system playback ports.
 - LV2 hosts now launch headless by default to avoid Surge-XT's native LV2 UI crashing under X11/Wayland, and plugin discovery reads LV2 `seeAlso` metadata to distinguish Surge XT from Surge XT Effects.
 - Plugin host auto-routing now connects only stereo outputs 1/2 to playback and connects `LoopMidi Output` MIDI to hosted plugin inputs.
+- Per-track Surge-XT program selection writes generated LV2 state and starts each hosted instance with its configured program number.
 
 ### Fixed
 
