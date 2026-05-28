@@ -439,10 +439,20 @@ void MidiEngine::scanPlugins() {
     for (const QFileInfo &bundle : bundles) {
       QString name = bundle.completeBaseName();
       QString pluginId = name;
+      bool isInstrumentPlugin = false;
       QFile manifest(bundle.absoluteFilePath() +
                      QStringLiteral("/manifest.ttl"));
       if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        const QString ttl = QString::fromUtf8(manifest.readAll());
+        QString ttl = QString::fromUtf8(manifest.readAll());
+        const QRegularExpression seeAlsoRe(
+            QStringLiteral("rdfs:seeAlso\\s+<([^>]+)>"));
+        const QRegularExpressionMatch seeAlsoMatch = seeAlsoRe.match(ttl);
+        if (seeAlsoMatch.hasMatch()) {
+          QFile seeAlso(bundle.absoluteFilePath() + QLatin1Char('/') +
+                        seeAlsoMatch.captured(1));
+          if (seeAlso.open(QIODevice::ReadOnly | QIODevice::Text))
+            ttl += QLatin1Char('\n') + QString::fromUtf8(seeAlso.readAll());
+        }
         const QRegularExpression nameRe(
             QStringLiteral("doap:name\\s+\\\"([^\\\"]+)\\\""));
         const QRegularExpression uriRe(
@@ -454,7 +464,11 @@ void MidiEngine::scanPlugins() {
           name = nameMatch.captured(1);
         if (uriMatch.hasMatch())
           pluginId = uriMatch.captured(1);
+        isInstrumentPlugin =
+            ttl.contains(QStringLiteral("lv2:InstrumentPlugin"));
       }
+      if (!isInstrumentPlugin)
+        continue;
       if (name.compare(QStringLiteral("Surge XT"), Qt::CaseInsensitive) == 0 ||
           name.compare(QStringLiteral("SurgeXT"), Qt::CaseInsensitive) == 0)
         name = QStringLiteral("Surge XT");
@@ -514,20 +528,47 @@ bool MidiEngine::resolveInstrumentSlotPlugin(int trackIndex) {
   if (slot.pluginFormat.compare(QStringLiteral("LV2"), Qt::CaseInsensitive) !=
       0)
     return false;
-  if (slot.pluginId.startsWith(QStringLiteral("http")))
+  const bool isKnownEffect =
+      slot.pluginId.contains(QStringLiteral("Surge_XT_Effects"),
+                             Qt::CaseInsensitive) ||
+      slot.pluginId.contains(QStringLiteral("surge-xt-effects"),
+                             Qt::CaseInsensitive) ||
+      slot.name.contains(QStringLiteral("Effects"), Qt::CaseInsensitive);
+  if (slot.pluginId.startsWith(QStringLiteral("http")) && !isKnownEffect)
     return true;
 
-  const QString wanted = slot.pluginId.trimmed();
+  const QString wanted =
+      isKnownEffect ? QStringLiteral("Surge XT") : slot.pluginId.trimmed();
   const QString slotName = slot.name.trimmed();
+
   for (const AvailablePlugin &plugin : std::as_const(m_availablePlugins)) {
     if (plugin.pluginFormat.compare(QStringLiteral("LV2"),
                                     Qt::CaseInsensitive) != 0)
       continue;
     const bool nameMatches =
         plugin.name.compare(wanted, Qt::CaseInsensitive) == 0 ||
-        slotName.contains(plugin.name, Qt::CaseInsensitive) ||
-        plugin.path.contains(wanted, Qt::CaseInsensitive);
+        slotName.contains(plugin.name, Qt::CaseInsensitive);
     if (!nameMatches)
+      continue;
+
+    slot.name =
+        QStringLiteral("%1 Track %2").arg(plugin.name).arg(trackIndex + 1);
+    slot.pluginFormat = plugin.pluginFormat;
+    slot.pluginId = plugin.pluginId;
+    slot.pluginPath = plugin.path;
+    emitInstrumentChanges();
+    saveSettings();
+    return true;
+  }
+
+  for (const AvailablePlugin &plugin : std::as_const(m_availablePlugins)) {
+    if (plugin.pluginFormat.compare(QStringLiteral("LV2"),
+                                    Qt::CaseInsensitive) != 0)
+      continue;
+    if (wanted.compare(QStringLiteral("Surge XT"), Qt::CaseInsensitive) == 0 &&
+        plugin.name.contains(QStringLiteral("Effects"), Qt::CaseInsensitive))
+      continue;
+    if (!plugin.path.contains(wanted, Qt::CaseInsensitive))
       continue;
 
     slot.name =
@@ -617,17 +658,20 @@ QString MidiEngine::pluginHostExecutable(const QString &format) const {
   if (format.compare(QStringLiteral("LV2"), Qt::CaseInsensitive) != 0)
     return QString();
 
-  QString executable =
-      QStandardPaths::findExecutable(QStringLiteral("jalv.qt5"));
+  QString executable = QStandardPaths::findExecutable(QStringLiteral("jalv"));
+  if (executable.isEmpty())
+    executable = QStandardPaths::findExecutable(QStringLiteral("jalv.qt5"));
   if (executable.isEmpty())
     executable = QStandardPaths::findExecutable(QStringLiteral("jalv.gtk"));
-  if (executable.isEmpty())
-    executable = QStandardPaths::findExecutable(QStringLiteral("jalv"));
   return executable;
 }
 
 QString MidiEngine::pluginHostClientName(int trackIndex) const {
   return QStringLiteral("loopmidi-track-%1").arg(trackIndex + 1);
+}
+
+QString MidiEngine::pwJackExecutable() const {
+  return QStandardPaths::findExecutable(QStringLiteral("pw-jack"));
 }
 
 bool MidiEngine::jackServerAvailable(QString *errorMessage) const {
@@ -640,7 +684,13 @@ bool MidiEngine::jackServerAvailable(QString *errorMessage) const {
   }
 
   QProcess lsp;
-  lsp.setProgram(jackLsp);
+  const QString pwJack = pwJackExecutable();
+  if (pwJack.isEmpty()) {
+    lsp.setProgram(jackLsp);
+  } else {
+    lsp.setProgram(pwJack);
+    lsp.setArguments(QStringList() << jackLsp);
+  }
   lsp.setProcessChannelMode(QProcess::MergedChannels);
   lsp.start();
   if (!lsp.waitForFinished(1500)) {
@@ -697,7 +747,11 @@ void MidiEngine::connectPluginHostAudio(const QString &clientName) {
     return;
 
   QProcess lsp;
-  lsp.start(jackLsp);
+  const QString pwJack = pwJackExecutable();
+  if (pwJack.isEmpty())
+    lsp.start(jackLsp);
+  else
+    lsp.start(pwJack, QStringList() << jackLsp);
   if (!lsp.waitForFinished(1000))
     return;
 
@@ -705,10 +759,8 @@ void MidiEngine::connectPluginHostAudio(const QString &clientName) {
                                 .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
   QStringList pluginOutputs;
   for (const QString &port : ports) {
-    if (port.startsWith(clientName + QLatin1Char(':')) &&
-        (port.contains(QStringLiteral("out"), Qt::CaseInsensitive) ||
-         port.contains(QStringLiteral("left"), Qt::CaseInsensitive) ||
-         port.contains(QStringLiteral("right"), Qt::CaseInsensitive))) {
+    if (port == clientName + QStringLiteral(":audio_out_1") ||
+        port == clientName + QStringLiteral(":audio_out_2")) {
       pluginOutputs << port;
     }
   }
@@ -721,8 +773,54 @@ void MidiEngine::connectPluginHostAudio(const QString &clientName) {
   for (int i = 0; i < pluginOutputs.size(); ++i) {
     const QString destination =
         playbackPorts[qMin(i, playbackPorts.size() - 1)];
+    if (pwJack.isEmpty()) {
+      QProcess::execute(jackConnect, QStringList()
+                                         << pluginOutputs[i] << destination);
+    } else {
+      QProcess::execute(pwJack, QStringList() << jackConnect << pluginOutputs[i]
+                                              << destination);
+    }
+  }
+}
+
+void MidiEngine::connectPluginHostMidi(const QString &clientName) {
+  const QString jackLsp =
+      QStandardPaths::findExecutable(QStringLiteral("jack_lsp"));
+  const QString jackConnect =
+      QStandardPaths::findExecutable(QStringLiteral("jack_connect"));
+  if (jackLsp.isEmpty() || jackConnect.isEmpty())
+    return;
+
+  QProcess lsp;
+  const QString pwJack = pwJackExecutable();
+  if (pwJack.isEmpty())
+    lsp.start(jackLsp);
+  else
+    lsp.start(pwJack, QStringList() << jackLsp);
+  if (!lsp.waitForFinished(1000))
+    return;
+
+  const QStringList ports = QString::fromLocal8Bit(lsp.readAllStandardOutput())
+                                .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+  QString loopMidiOutput;
+  const QString pluginInput = clientName + QStringLiteral(":in");
+  for (const QString &port : ports) {
+    if (port.contains(QStringLiteral("LoopMidi Output"), Qt::CaseInsensitive) &&
+        port.contains(QStringLiteral("capture"), Qt::CaseInsensitive)) {
+      loopMidiOutput = port;
+      break;
+    }
+  }
+
+  if (loopMidiOutput.isEmpty() || !ports.contains(pluginInput))
+    return;
+
+  if (pwJack.isEmpty()) {
     QProcess::execute(jackConnect, QStringList()
-                                       << pluginOutputs[i] << destination);
+                                       << loopMidiOutput << pluginInput);
+  } else {
+    QProcess::execute(pwJack, QStringList() << jackConnect << loopMidiOutput
+                                            << pluginInput);
   }
 }
 
@@ -763,11 +861,14 @@ void MidiEngine::startPluginHost() {
       continue;
     }
     auto *process = new QProcess(this);
-    process->setProgram(hostExecutable);
+    const QString pwJack = pwJackExecutable();
+    process->setProgram(pwJack.isEmpty() ? hostExecutable : pwJack);
     const QString clientName = pluginHostClientName(i);
-    process->setArguments(QStringList()
-                          << QStringLiteral("-n") << clientName
-                          << QStringLiteral("-s") << slot.pluginId);
+    QStringList hostArgs;
+    if (!pwJack.isEmpty())
+      hostArgs << hostExecutable;
+    hostArgs << QStringLiteral("-n") << clientName << slot.pluginId;
+    process->setArguments(hostArgs);
     process->setProcessChannelMode(QProcess::MergedChannels);
     connect(process, &QProcess::readyReadStandardOutput, this,
             [this, process, i]() {
@@ -820,6 +921,7 @@ void MidiEngine::startPluginHost() {
       ++started;
       QTimer::singleShot(1200, this, [this, clientName]() {
         connectPluginHostAudio(clientName);
+        connectPluginHostMidi(clientName);
       });
     } else {
       process->deleteLater();

@@ -260,9 +260,11 @@ private:
   bool jackServerAvailable(QString *errorMessage) const;
   QString pluginHostExecutable(const QString &format) const;
   QString pluginHostClientName(int trackIndex) const;
+  QString pwJackExecutable() const;
   void appendPluginHostOutput(QProcess *process, int trackIndex,
                               const QString &output);
   void connectPluginHostAudio(const QString &clientName);
+  void connectPluginHostMidi(const QString &clientName);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
   static QString projectNameToFileName(const QString &name);

@@ -15,6 +15,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Plugin discovery scans LV2, CLAP, and VST3 paths and lets each track select an available plugin from the instrument rack UI.
 - Process-backed LV2 host controls can launch one `jalv`/`jalv-qt` plugin host instance per enabled instrument slot.
 - Plugin host instances now use stable per-track JACK client names and can auto-connect detected audio outputs to system playback ports.
+- LV2 hosts now launch headless by default to avoid Surge-XT's native LV2 UI crashing under X11/Wayland, and plugin discovery reads LV2 `seeAlso` metadata to distinguish Surge XT from Surge XT Effects.
+- Plugin host auto-routing now connects only stereo outputs 1/2 to playback and connects `LoopMidi Output` MIDI to hosted plugin inputs.
+
+### Fixed
+
+- Process-backed plugin hosting now runs through PipeWire-JACK via `pw-jack` when available, so `jalv`, `jack_lsp`, and `jack_connect` use the active PipeWire audio graph instead of expecting a separate classic JACK server.
+- Plugin host diagnostics now surface `jalv` output and exit reasons in the terminal and app error banner instead of silently switching from running to stopped.
+- Auto-routing no longer connects optional Surge-XT outputs 3-6 into the right playback channel, which could pollute the desktop audio graph.
 
 ---
 
