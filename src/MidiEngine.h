@@ -11,11 +11,18 @@
 #include <QtQml/qqmlregistration.h>
 #include <memory>
 #include <rtmidi/RtMidi.h>
+#include <vector>
 
 struct NoteEvent {
   int note = 0;
   int velocity = 0;
   int channel = 0;
+};
+
+struct ActivePlaybackNote {
+  int note = 0;
+  int channel = 0;
+  int track = 0;
 };
 
 // One step = zero or more simultaneous notes (a chord)
@@ -32,6 +39,7 @@ struct InstrumentSlot {
   QString pluginFormat;
   QString pluginId;
   QString pluginPath;
+  QString patchPath;
   QString presetName;
   int program = 0;
 };
@@ -40,6 +48,12 @@ struct AvailablePlugin {
   QString name;
   QString pluginFormat;
   QString pluginId;
+  QString path;
+};
+
+struct SurgePatch {
+  QString name;
+  QString category;
   QString path;
 };
 
@@ -60,6 +74,10 @@ class MidiEngine : public QObject {
                  instrumentRackChanged)
   Q_PROPERTY(QVariantList availablePlugins READ availablePlugins NOTIFY
                  availablePluginsChanged)
+  Q_PROPERTY(QVariantList availableSurgePatches READ availableSurgePatches
+                 NOTIFY availableSurgePatchesChanged)
+  Q_PROPERTY(int activeSurgePatchIndex READ activeSurgePatchIndex NOTIFY
+                 activeInstrumentChanged)
   Q_PROPERTY(QString activeInstrumentName READ activeInstrumentName WRITE
                  setActiveInstrumentName NOTIFY activeInstrumentChanged)
   Q_PROPERTY(QString activeInstrumentFormat READ activeInstrumentFormat WRITE
@@ -68,6 +86,8 @@ class MidiEngine : public QObject {
       QString activeInstrumentPluginId READ activeInstrumentPluginId WRITE
           setActiveInstrumentPluginId NOTIFY activeInstrumentChanged)
   Q_PROPERTY(QString activeInstrumentPluginPath READ activeInstrumentPluginPath
+                 NOTIFY activeInstrumentChanged)
+  Q_PROPERTY(QString activeInstrumentPatchPath READ activeInstrumentPatchPath
                  NOTIFY activeInstrumentChanged)
   Q_PROPERTY(
       QString activeInstrumentPresetName READ activeInstrumentPresetName WRITE
@@ -136,10 +156,13 @@ public:
   int activeTrackMidiChannel() const;
   QVariantList instrumentRack() const;
   QVariantList availablePlugins() const;
+  QVariantList availableSurgePatches() const;
+  int activeSurgePatchIndex() const;
   QString activeInstrumentName() const;
   QString activeInstrumentFormat() const;
   QString activeInstrumentPluginId() const;
   QString activeInstrumentPluginPath() const;
+  QString activeInstrumentPatchPath() const;
   QString activeInstrumentPresetName() const;
   int activeInstrumentProgram() const;
   bool activeInstrumentEnabled() const;
@@ -201,7 +224,9 @@ public slots:
   void tapTempo();
   void refreshPorts();
   void scanPlugins();
+  void scanSurgePatches();
   void setActiveInstrumentFromAvailablePlugin(int index);
+  void setActiveInstrumentFromSurgePatch(int index);
   void startPluginHost();
   void stopPluginHost();
   bool saveProject(const QString &filePath);
@@ -220,6 +245,7 @@ signals:
   void activeInstrumentChanged();
   void instrumentRackChanged();
   void availablePluginsChanged();
+  void availableSurgePatchesChanged();
   void pluginHostChanged();
   void recordAllBeatsChanged();
   void portsChanged();
@@ -242,6 +268,7 @@ public:
 
 private:
   void setupVirtualOutput();
+  void setupTrackVirtualOutputs();
   void openInputPort(int port);
   void openOutputPort(int port);
   void handleMidiLearn(int ccOrNote, bool isCC);
@@ -249,6 +276,9 @@ private:
   void commitChordStep(); // close current chord window, move to next step
   void sendNoteOn(int note, int velocity, int channel);
   void sendNoteOff(int note, int channel);
+  void sendTrackNoteOn(int track, int note, int velocity, int channel);
+  void sendTrackNoteOff(int track, int note, int channel);
+  void sendTrackMessage(int track, const std::vector<unsigned char> &message);
   void stopAllNotes();
   void pollPorts();
   void loadSettings();
@@ -259,18 +289,23 @@ private:
   InstrumentSlot activeInstrumentSlot() const;
   void emitInstrumentChanges();
   QStringList pluginSearchPaths(const QString &format) const;
+  QStringList surgeDataPaths() const;
   void addAvailablePlugin(const QString &name, const QString &format,
                           const QString &pluginId, const QString &path);
+  void addAvailableSurgePatch(const QString &name, const QString &category,
+                              const QString &path);
   bool resolveInstrumentSlotPlugin(int trackIndex);
   bool jackServerAvailable(QString *errorMessage) const;
   QString pluginHostExecutable(const QString &format) const;
   QString pluginHostClientName(int trackIndex) const;
   QString pwJackExecutable() const;
+  QByteArray readSurgePatchChunk(const QString &path) const;
   QString writeSurgeProgramState(int trackIndex) const;
   void appendPluginHostOutput(QProcess *process, int trackIndex,
                               const QString &output);
   void connectPluginHostAudio(const QString &clientName);
-  void connectPluginHostMidi(const QString &clientName);
+  void connectPluginHostMidi(const QString &clientName, int trackIndex);
+  void disconnectPluginHostMidi(const QString &clientName);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
   static QString projectNameToFileName(const QString &name);
@@ -280,12 +315,15 @@ private:
   std::unique_ptr<RtMidiIn> m_midiIn;
   std::unique_ptr<RtMidiOut> m_midiOut;   // virtual output (LoopMidi port)
   std::unique_ptr<RtMidiOut> m_midiOutHW; // hardware output
+  std::vector<std::unique_ptr<RtMidiOut>> m_trackMidiOuts;
+  QVector<bool> m_trackVirtualPortsOpen;
 
   // Tracks: each track has m_maxSteps chord steps.
   QVector<QVector<ChordStep>> m_tracks;
   QVector<int> m_trackMidiChannels;
   QVector<InstrumentSlot> m_instrumentRack;
   QVector<AvailablePlugin> m_availablePlugins;
+  QVector<SurgePatch> m_availableSurgePatches;
   QVector<QProcess *> m_pluginHostProcesses;
   bool m_pluginHostRunning = false;
   bool m_pluginHostAutoConnectAudio = true;
@@ -308,7 +346,7 @@ private:
   QTimer *m_chordTimer = nullptr; // 30 ms window to group simultaneous notes
 
   // Notes currently sounding during playback (for Note-Off on next tick)
-  QVector<NoteEvent> m_activePlaybackNotes;
+  QVector<ActivePlaybackNote> m_activePlaybackNotes;
 
   QStringList m_inputPorts;
   QStringList m_outputPorts;

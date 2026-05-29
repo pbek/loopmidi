@@ -18,12 +18,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LV2 hosts now launch headless by default to avoid Surge-XT's native LV2 UI crashing under X11/Wayland, and plugin discovery reads LV2 `seeAlso` metadata to distinguish Surge XT from Surge XT Effects.
 - Plugin host auto-routing now connects only stereo outputs 1/2 to playback and connects `LoopMidi Output` MIDI to hosted plugin inputs.
 - Per-track Surge-XT program selection writes generated LV2 state and starts each hosted instance with its configured program number.
+- Surge-XT factory and third-party `.fxp` patches are scanned into a named per-track patch selector; selected patches are converted into generated LV2 state and loaded by each headless `jalv` instance.
+- Surge patch scanning is deferred until after startup and selected patch lookup is handled in C++ to keep track switching responsive with large patch libraries.
 
 ### Fixed
 
 - Process-backed plugin hosting now runs through PipeWire-JACK via `pw-jack` when available, so `jalv`, `jack_lsp`, and `jack_connect` use the active PipeWire audio graph instead of expecting a separate classic JACK server.
 - Plugin host diagnostics now surface `jalv` output and exit reasons in the terminal and app error banner instead of silently switching from running to stopped.
 - Auto-routing no longer connects optional Surge-XT outputs 3-6 into the right playback channel, which could pollute the desktop audio graph.
+- Surge patch selection no longer rebuilds the full patch model on track/channel changes, and patch scanning is limited to a practical factory subset to avoid UI stalls.
+- Hosted instruments now use one virtual MIDI output per track, so active-track audition and sequencer playback target the matching Surge-XT instance instead of sending every note to every hosted synth.
+- Shared `LoopMidi Output` passthrough is muted while the internal plugin host is running, and stale shared MIDI links are disconnected from hosted synth inputs before per-track links are made.
 
 ---
 

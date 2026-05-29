@@ -1,4 +1,5 @@
 #include "MidiEngine.h"
+#include <QByteArray>
 #include <QDate>
 #include <QDateTime>
 #include <QDebug>
@@ -69,8 +70,10 @@ MidiEngine::MidiEngine(QObject *parent) : QObject(parent) {
     m_instrumentRack[i] = defaultInstrumentSlot(i);
 
   setupVirtualOutput();
+  setupTrackVirtualOutputs();
   loadSettings();
   scanPlugins();
+  QTimer::singleShot(250, this, &MidiEngine::scanSurgePatches);
   refreshPorts();
   tryRestoreSavedPorts();
 }
@@ -93,6 +96,13 @@ MidiEngine::~MidiEngine() {
       m_midiOutHW->closePort();
     } catch (...) {
     }
+  for (auto &midiOut : m_trackMidiOuts) {
+    if (midiOut)
+      try {
+        midiOut->closePort();
+      } catch (...) {
+      }
+  }
 }
 
 // ── Virtual port ─────────────────────────────────────────────────────────────
@@ -109,6 +119,29 @@ void MidiEngine::setupVirtualOutput() {
                << QString::fromStdString(e.getMessage());
     emit errorOccurred(QString("Virtual port: ") +
                        QString::fromStdString(e.getMessage()));
+  }
+}
+
+void MidiEngine::setupTrackVirtualOutputs() {
+  m_trackMidiOuts.clear();
+  m_trackVirtualPortsOpen.clear();
+  m_trackMidiOuts.reserve(static_cast<size_t>(m_trackCount));
+  m_trackVirtualPortsOpen.resize(m_trackCount);
+
+  for (int i = 0; i < m_trackCount; ++i) {
+    try {
+      auto midiOut = std::make_unique<RtMidiOut>();
+      const QString portName = QStringLiteral("LoopMidi Track %1").arg(i + 1);
+      midiOut->openVirtualPort(portName.toStdString());
+      m_trackMidiOuts.push_back(std::move(midiOut));
+      m_trackVirtualPortsOpen[i] = true;
+      qDebug() << "Virtual MIDI port" << portName << "opened";
+    } catch (RtMidiError &e) {
+      m_trackMidiOuts.push_back(nullptr);
+      m_trackVirtualPortsOpen[i] = false;
+      emit errorOccurred(QStringLiteral("Track virtual port: ") +
+                         QString::fromStdString(e.getMessage()));
+    }
   }
 }
 
@@ -327,6 +360,7 @@ InstrumentSlot MidiEngine::defaultInstrumentSlot(int trackIndex) const {
   slot.pluginFormat = QStringLiteral("LV2");
   slot.pluginId = QStringLiteral("Surge XT");
   slot.pluginPath.clear();
+  slot.patchPath.clear();
   slot.presetName = QStringLiteral("Init");
   slot.program = 0;
   return slot;
@@ -349,6 +383,7 @@ QVariantList MidiEngine::instrumentRack() const {
     map["pluginFormat"] = slot.pluginFormat;
     map["pluginId"] = slot.pluginId;
     map["pluginPath"] = slot.pluginPath;
+    map["patchPath"] = slot.patchPath;
     map["presetName"] = slot.presetName;
     map["program"] = slot.program;
     result << map;
@@ -369,6 +404,34 @@ QVariantList MidiEngine::availablePlugins() const {
     result << map;
   }
   return result;
+}
+
+QVariantList MidiEngine::availableSurgePatches() const {
+  QVariantList result;
+  for (const SurgePatch &patch : m_availableSurgePatches) {
+    QVariantMap map;
+    map["name"] = patch.name;
+    map["category"] = patch.category;
+    map["path"] = patch.path;
+    map["label"] =
+        patch.category.isEmpty()
+            ? patch.name
+            : QStringLiteral("%1 / %2").arg(patch.category, patch.name);
+    result << map;
+  }
+  return result;
+}
+
+int MidiEngine::activeSurgePatchIndex() const {
+  const QString activePath = activeInstrumentSlot().patchPath;
+  if (activePath.isEmpty())
+    return -1;
+
+  for (int i = 0; i < m_availableSurgePatches.size(); ++i) {
+    if (m_availableSurgePatches[i].path == activePath)
+      return i;
+  }
+  return -1;
 }
 
 QStringList MidiEngine::pluginSearchPaths(const QString &format) const {
@@ -407,6 +470,25 @@ QStringList MidiEngine::pluginSearchPaths(const QString &format) const {
   return paths;
 }
 
+QStringList MidiEngine::surgeDataPaths() const {
+  QStringList paths = QString::fromLocal8Bit(qgetenv("SURGE_XT_DATA_PATH"))
+                          .split(QLatin1Char(':'), Qt::SkipEmptyParts);
+
+  for (const AvailablePlugin &plugin : m_availablePlugins) {
+    if (!plugin.name.contains(QStringLiteral("Surge XT"), Qt::CaseInsensitive))
+      continue;
+    const int libIndex = plugin.path.indexOf(QStringLiteral("/lib/lv2/"));
+    if (libIndex > 0)
+      paths << plugin.path.left(libIndex) + QStringLiteral("/share/surge-xt");
+  }
+
+  paths << QStringLiteral("/run/current-system/sw/share/surge-xt")
+        << QStringLiteral("/usr/share/surge-xt")
+        << QStringLiteral("/usr/local/share/surge-xt");
+  paths.removeDuplicates();
+  return paths;
+}
+
 void MidiEngine::addAvailablePlugin(const QString &name, const QString &format,
                                     const QString &pluginId,
                                     const QString &path) {
@@ -426,6 +508,21 @@ void MidiEngine::addAvailablePlugin(const QString &name, const QString &format,
   plugin.pluginId = pluginId;
   plugin.path = path;
   m_availablePlugins.append(plugin);
+}
+
+void MidiEngine::addAvailableSurgePatch(const QString &name,
+                                        const QString &category,
+                                        const QString &path) {
+  for (const SurgePatch &patch : m_availableSurgePatches) {
+    if (patch.path == path)
+      return;
+  }
+
+  SurgePatch patch;
+  patch.name = name;
+  patch.category = category;
+  patch.path = path;
+  m_availableSurgePatches.append(patch);
 }
 
 void MidiEngine::scanPlugins() {
@@ -503,6 +600,49 @@ void MidiEngine::scanPlugins() {
   emit availablePluginsChanged();
 }
 
+void MidiEngine::scanSurgePatches() {
+  m_availableSurgePatches.clear();
+
+  const QStringList categories = {
+      QStringLiteral("Basses"),    QStringLiteral("Brass"),
+      QStringLiteral("Keys"),      QStringLiteral("Leads"),
+      QStringLiteral("Pads"),      QStringLiteral("Percussion"),
+      QStringLiteral("Plucks"),    QStringLiteral("Polysynths"),
+      QStringLiteral("Sequences"), QStringLiteral("Strings"),
+      QStringLiteral("Winds"),     QStringLiteral("MPE"),
+  };
+  constexpr int kMaxPatchesPerCategory = 32;
+
+  for (const QString &dataPath : surgeDataPaths()) {
+    QDir root(dataPath);
+    if (!root.exists())
+      continue;
+
+    const QString factoryRoot =
+        root.absoluteFilePath(QStringLiteral("patches_factory"));
+    for (const QString &category : categories) {
+      QDir dir(factoryRoot + QLatin1Char('/') + category);
+      if (!dir.exists())
+        continue;
+
+      const QFileInfoList files = dir.entryInfoList(
+          QStringList() << QStringLiteral("*.fxp"), QDir::Files, QDir::Name);
+      const int count = qMin(kMaxPatchesPerCategory, files.size());
+      for (int i = 0; i < count; ++i) {
+        const QFileInfo &file = files[i];
+        addAvailableSurgePatch(file.completeBaseName(), category,
+                               file.absoluteFilePath());
+      }
+    }
+
+    if (!m_availableSurgePatches.isEmpty())
+      break;
+  }
+
+  qDebug() << "Scanned" << m_availableSurgePatches.size() << "Surge XT patches";
+  emit availableSurgePatchesChanged();
+}
+
 void MidiEngine::setActiveInstrumentFromAvailablePlugin(int index) {
   if (index < 0 || index >= m_availablePlugins.size() || m_activeTrack < 0 ||
       m_activeTrack >= m_instrumentRack.size())
@@ -518,6 +658,22 @@ void MidiEngine::setActiveInstrumentFromAvailablePlugin(int index) {
   slot.pluginPath = plugin.path;
   if (slot.presetName.trimmed().isEmpty())
     slot.presetName = QStringLiteral("Init");
+  emitInstrumentChanges();
+  saveSettings();
+}
+
+void MidiEngine::setActiveInstrumentFromSurgePatch(int index) {
+  if (index < 0 || index >= m_availableSurgePatches.size() ||
+      m_activeTrack < 0 || m_activeTrack >= m_instrumentRack.size())
+    return;
+
+  const SurgePatch &patch = m_availableSurgePatches[index];
+  InstrumentSlot &slot = m_instrumentRack[m_activeTrack];
+  slot.patchPath = patch.path;
+  slot.presetName =
+      patch.category.isEmpty()
+          ? patch.name
+          : QStringLiteral("%1 / %2").arg(patch.category, patch.name);
   emitInstrumentChanges();
   saveSettings();
 }
@@ -602,6 +758,10 @@ QString MidiEngine::activeInstrumentPluginPath() const {
   return activeInstrumentSlot().pluginPath;
 }
 
+QString MidiEngine::activeInstrumentPatchPath() const {
+  return activeInstrumentSlot().patchPath;
+}
+
 QString MidiEngine::activeInstrumentPresetName() const {
   return activeInstrumentSlot().presetName;
 }
@@ -680,6 +840,36 @@ QString MidiEngine::pwJackExecutable() const {
   return QStandardPaths::findExecutable(QStringLiteral("pw-jack"));
 }
 
+QByteArray MidiEngine::readSurgePatchChunk(const QString &path) const {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly))
+    return QByteArray();
+
+  const QByteArray header = file.read(52);
+  if (header.size() != 52)
+    return QByteArray();
+
+  auto readBe32 = [](const QByteArray &data, int offset) {
+    const auto *bytes =
+        reinterpret_cast<const unsigned char *>(data.constData() + offset);
+    return (static_cast<quint32>(bytes[0]) << 24) |
+           (static_cast<quint32>(bytes[1]) << 16) |
+           (static_cast<quint32>(bytes[2]) << 8) |
+           static_cast<quint32>(bytes[3]);
+  };
+
+  if (readBe32(header, 0) != 0x43636e4b || readBe32(header, 8) != 0x46504368 ||
+      readBe32(header, 16) != 0x636a7333)
+    return QByteArray();
+
+  const quint32 chunkSize = readBe32(header, 48);
+  if (chunkSize == 0 || chunkSize > 16 * 1024 * 1024)
+    return QByteArray();
+
+  const QByteArray chunk = file.read(static_cast<qint64>(chunkSize));
+  return chunk.size() == static_cast<int>(chunkSize) ? chunk : QByteArray();
+}
+
 QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
   if (trackIndex < 0 || trackIndex >= m_instrumentRack.size())
     return QString();
@@ -687,6 +877,17 @@ QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
   const InstrumentSlot &slot = m_instrumentRack[trackIndex];
   if (!slot.pluginId.contains(QStringLiteral("surge"), Qt::CaseInsensitive))
     return QString();
+
+  const QByteArray patchChunk = readSurgePatchChunk(slot.patchPath);
+  if (!patchChunk.isEmpty()) {
+    qWarning().noquote() << "[plugin host] Track" << (trackIndex + 1)
+                         << "loading Surge patch" << slot.presetName << "from"
+                         << slot.patchPath;
+  } else {
+    qWarning().noquote() << "[plugin host] Track" << (trackIndex + 1)
+                         << "has no readable Surge patch; using Program"
+                         << slot.program << "patchPath=" << slot.patchPath;
+  }
 
   QString root =
       QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -724,22 +925,41 @@ QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
   QFile state(statePath);
   if (!state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
     return QString();
-  state.write(
-      QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
-                     "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
-                     "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
-                     "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
-                     "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
-                     "<%1>\n"
-                     "    a pset:Preset ;\n"
-                     "    lv2:appliesTo <%2> ;\n"
-                     "    rdfs:label \"Program %3\" ;\n"
-                     "    state:state [\n"
-                     "        <%2:Program> \"%3\"^^xsd:int\n"
-                     "    ] .\n")
-          .arg(stateUri, slot.pluginId)
-          .arg(slot.program)
-          .toUtf8());
+  if (!patchChunk.isEmpty()) {
+    state.write(QStringLiteral(
+                    "@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n"
+                    "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                    "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
+                    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+                    "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
+                    "<%1>\n"
+                    "    a pset:Preset ;\n"
+                    "    lv2:appliesTo <%2> ;\n"
+                    "    rdfs:label \"%3\" ;\n"
+                    "    state:state [\n"
+                    "        <%2:StateString> \"%4\"^^atom:String\n"
+                    "    ] .\n")
+                    .arg(stateUri, slot.pluginId, slot.presetName,
+                         QString::fromLatin1(patchChunk.toBase64()))
+                    .toUtf8());
+  } else {
+    state.write(QStringLiteral(
+                    "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                    "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
+                    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+                    "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
+                    "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
+                    "<%1>\n"
+                    "    a pset:Preset ;\n"
+                    "    lv2:appliesTo <%2> ;\n"
+                    "    rdfs:label \"Program %3\" ;\n"
+                    "    state:state [\n"
+                    "        <%2:Program> \"%3\"^^xsd:int\n"
+                    "    ] .\n")
+                    .arg(stateUri, slot.pluginId)
+                    .arg(slot.program)
+                    .toUtf8());
+  }
 
   return stateDir;
 }
@@ -853,7 +1073,8 @@ void MidiEngine::connectPluginHostAudio(const QString &clientName) {
   }
 }
 
-void MidiEngine::connectPluginHostMidi(const QString &clientName) {
+void MidiEngine::connectPluginHostMidi(const QString &clientName,
+                                       int trackIndex) {
   const QString jackLsp =
       QStandardPaths::findExecutable(QStringLiteral("jack_lsp"));
   const QString jackConnect =
@@ -874,23 +1095,99 @@ void MidiEngine::connectPluginHostMidi(const QString &clientName) {
                                 .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
   QString loopMidiOutput;
   const QString pluginInput = clientName + QStringLiteral(":in");
+  const QString trackPortName =
+      QStringLiteral("LoopMidi Track %1").arg(trackIndex + 1);
+
+  disconnectPluginHostMidi(clientName);
+
   for (const QString &port : ports) {
-    if (port.contains(QStringLiteral("LoopMidi Output"), Qt::CaseInsensitive) &&
+    if (port.contains(trackPortName, Qt::CaseInsensitive) &&
         port.contains(QStringLiteral("capture"), Qt::CaseInsensitive)) {
       loopMidiOutput = port;
       break;
     }
   }
 
-  if (loopMidiOutput.isEmpty() || !ports.contains(pluginInput))
+  if (loopMidiOutput.isEmpty()) {
+    const QString message =
+        QStringLiteral("Could not find MIDI output %1 for %2.")
+            .arg(trackPortName, clientName);
+    qWarning().noquote() << "[plugin host]" << message;
+    emit errorOccurred(message);
+    return;
+  }
+  if (!ports.contains(pluginInput)) {
+    const QString message =
+        QStringLiteral("Could not find hosted MIDI input %1.").arg(pluginInput);
+    qWarning().noquote() << "[plugin host]" << message;
+    emit errorOccurred(message);
+    return;
+  }
+
+  int result = 0;
+  if (pwJack.isEmpty()) {
+    result = QProcess::execute(jackConnect,
+                               QStringList() << loopMidiOutput << pluginInput);
+  } else {
+    result = QProcess::execute(
+        pwJack, QStringList() << jackConnect << loopMidiOutput << pluginInput);
+  }
+
+  if (result == 0) {
+    qWarning().noquote() << "[plugin host] Connected MIDI" << loopMidiOutput
+                         << "->" << pluginInput;
+  } else {
+    const QString message = QStringLiteral("Could not connect MIDI %1 -> %2.")
+                                .arg(loopMidiOutput, pluginInput);
+    qWarning().noquote() << "[plugin host]" << message;
+    emit errorOccurred(message);
+  }
+}
+
+void MidiEngine::disconnectPluginHostMidi(const QString &clientName) {
+  const QString jackLsp =
+      QStandardPaths::findExecutable(QStringLiteral("jack_lsp"));
+  const QString jackDisconnect =
+      QStandardPaths::findExecutable(QStringLiteral("jack_disconnect"));
+  if (jackLsp.isEmpty() || jackDisconnect.isEmpty())
     return;
 
-  if (pwJack.isEmpty()) {
-    QProcess::execute(jackConnect, QStringList()
-                                       << loopMidiOutput << pluginInput);
-  } else {
-    QProcess::execute(pwJack, QStringList() << jackConnect << loopMidiOutput
-                                            << pluginInput);
+  const QString pwJack = pwJackExecutable();
+  QProcess lsp;
+  if (pwJack.isEmpty())
+    lsp.start(jackLsp, QStringList() << QStringLiteral("-c"));
+  else
+    lsp.start(pwJack, QStringList() << jackLsp << QStringLiteral("-c"));
+  if (!lsp.waitForFinished(1000))
+    return;
+
+  const QString pluginInput = clientName + QStringLiteral(":in");
+  const QStringList lines = QString::fromLocal8Bit(lsp.readAllStandardOutput())
+                                .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+  QString currentPort;
+  for (const QString &line : lines) {
+    const QString trimmed = line.trimmed();
+    if (!line.startsWith(QLatin1Char(' ')) &&
+        !line.startsWith(QLatin1Char('\t'))) {
+      currentPort = trimmed;
+      continue;
+    }
+
+    if (trimmed != pluginInput)
+      continue;
+    if (!currentPort.contains(QStringLiteral("LoopMidi"),
+                              Qt::CaseInsensitive) &&
+        !currentPort.contains(QStringLiteral("RtMidi Output Client"),
+                              Qt::CaseInsensitive))
+      continue;
+
+    if (pwJack.isEmpty()) {
+      QProcess::execute(jackDisconnect, QStringList()
+                                            << currentPort << pluginInput);
+    } else {
+      QProcess::execute(pwJack, QStringList() << jackDisconnect << currentPort
+                                              << pluginInput);
+    }
   }
 }
 
@@ -993,9 +1290,9 @@ void MidiEngine::startPluginHost() {
     if (process->waitForStarted(1500)) {
       m_pluginHostProcesses.append(process);
       ++started;
-      QTimer::singleShot(1200, this, [this, clientName]() {
+      QTimer::singleShot(1200, this, [this, clientName, i]() {
         connectPluginHostAudio(clientName);
-        connectPluginHostMidi(clientName);
+        connectPluginHostMidi(clientName, i);
       });
     } else {
       process->deleteLater();
@@ -1237,6 +1534,7 @@ bool MidiEngine::saveProject(const QString &filePath) {
     slotJson["pluginFormat"] = slot.pluginFormat;
     slotJson["pluginId"] = slot.pluginId;
     slotJson["pluginPath"] = slot.pluginPath;
+    slotJson["patchPath"] = slot.patchPath;
     slotJson["presetName"] = slot.presetName;
     slotJson["program"] = slot.program;
     instrumentRack.append(slotJson);
@@ -1351,6 +1649,8 @@ bool MidiEngine::loadProject(const QString &filePath) {
         slotJson.value("pluginId").toString(slot.pluginId).trimmed();
     slot.pluginPath =
         slotJson.value("pluginPath").toString(slot.pluginPath).trimmed();
+    slot.patchPath =
+        slotJson.value("patchPath").toString(slot.patchPath).trimmed();
     slot.presetName =
         slotJson.value("presetName").toString(slot.presetName).trimmed();
     slot.program =
@@ -1402,6 +1702,7 @@ bool MidiEngine::loadProject(const QString &filePath) {
           current.pluginFormat != loaded.pluginFormat ||
           current.pluginId != loaded.pluginId ||
           current.pluginPath != loaded.pluginPath ||
+          current.patchPath != loaded.patchPath ||
           current.presetName != loaded.presetName ||
           current.program != loaded.program) {
         instrumentRackChangedNow = true;
@@ -1686,7 +1987,6 @@ void MidiEngine::processIncomingMidi(const std::vector<unsigned char> &msg) {
   bool isNoteOn = (msgType == 0x90) && (data2 > 0);
   bool isNoteOff = (msgType == 0x80) || ((msgType == 0x90) && (data2 == 0));
   bool isCC = (msgType == 0xB0);
-  Q_UNUSED(isNoteOff)
 
   // MIDI Learn
   if (m_midiLearnActive) {
@@ -1708,12 +2008,26 @@ void MidiEngine::processIncomingMidi(const std::vector<unsigned char> &msg) {
       return;
   }
 
-  // Passthrough to virtual output
-  if (m_passthroughEnabled && m_midiOut && m_virtualPortOpen) {
+  // Passthrough to the shared virtual output is for external DAWs/synths. When
+  // the internal host is running, per-track outputs are used to avoid stacking
+  // every hosted synth from the same shared MIDI stream.
+  if (m_passthroughEnabled && !m_pluginHostRunning && m_midiOut &&
+      m_virtualPortOpen) {
     try {
       std::vector<unsigned char> fwd(msg.begin(), msg.end());
       m_midiOut->sendMessage(&fwd);
     } catch (...) {
+    }
+  }
+
+  // Audition live input through the active track's hosted instrument only.
+  if (m_passthroughEnabled && (isNoteOn || isNoteOff)) {
+    std::vector<unsigned char> trackMsg(msg.begin(), msg.end());
+    if (!trackMsg.empty()) {
+      const int outputChannel = activeTrackMidiChannel() - 1;
+      trackMsg[0] = static_cast<unsigned char>((trackMsg[0] & 0xF0) |
+                                               (outputChannel & 0x0F));
+      sendTrackMessage(m_activeTrack, trackMsg);
     }
   }
 
@@ -1792,7 +2106,7 @@ void MidiEngine::advanceStep() {
 
   // Stop all notes from the previous step
   for (const auto &ev : m_activePlaybackNotes)
-    sendNoteOff(ev.note, ev.channel);
+    sendTrackNoteOff(ev.track, ev.note, ev.channel);
   m_activePlaybackNotes.clear();
 
   for (int trackIndex = 0; trackIndex < m_tracks.size(); ++trackIndex) {
@@ -1805,9 +2119,11 @@ void MidiEngine::advanceStep() {
                                   ? m_trackMidiChannels[trackIndex]
                                   : qMin(trackIndex, 15);
     for (const auto &ev : step) {
-      sendNoteOn(ev.note, ev.velocity, outputChannel);
+      if (!m_pluginHostRunning)
+        sendNoteOn(ev.note, ev.velocity, outputChannel);
+      sendTrackNoteOn(trackIndex, ev.note, ev.velocity, outputChannel);
       m_activePlaybackNotes.append(
-          NoteEvent{ev.note, ev.velocity, outputChannel});
+          ActivePlaybackNote{ev.note, outputChannel, trackIndex});
     }
   }
 
@@ -1846,9 +2162,40 @@ void MidiEngine::sendNoteOff(int note, int channel) {
   }
 }
 
+void MidiEngine::sendTrackMessage(int track,
+                                  const std::vector<unsigned char> &message) {
+  if (track < 0 || track >= static_cast<int>(m_trackMidiOuts.size()) ||
+      track >= m_trackVirtualPortsOpen.size() ||
+      !m_trackVirtualPortsOpen[track] ||
+      !m_trackMidiOuts[static_cast<size_t>(track)])
+    return;
+
+  try {
+    std::vector<unsigned char> msg(message.begin(), message.end());
+    m_trackMidiOuts[static_cast<size_t>(track)]->sendMessage(&msg);
+  } catch (...) {
+  }
+}
+
+void MidiEngine::sendTrackNoteOn(int track, int note, int velocity,
+                                 int channel) {
+  std::vector<unsigned char> msg = {
+      static_cast<unsigned char>(0x90 | (channel & 0x0F)),
+      static_cast<unsigned char>(note & 0x7F),
+      static_cast<unsigned char>(velocity & 0x7F)};
+  sendTrackMessage(track, msg);
+}
+
+void MidiEngine::sendTrackNoteOff(int track, int note, int channel) {
+  std::vector<unsigned char> msg = {
+      static_cast<unsigned char>(0x80 | (channel & 0x0F)),
+      static_cast<unsigned char>(note & 0x7F), 0x00};
+  sendTrackMessage(track, msg);
+}
+
 void MidiEngine::stopAllNotes() {
   for (const auto &ev : m_activePlaybackNotes)
-    sendNoteOff(ev.note, ev.channel);
+    sendTrackNoteOff(ev.track, ev.note, ev.channel);
   m_activePlaybackNotes.clear();
 
   if (m_midiOut && m_virtualPortOpen) {
@@ -1859,6 +2206,14 @@ void MidiEngine::stopAllNotes() {
         m_midiOut->sendMessage(&msg);
       }
     } catch (...) {
+    }
+  }
+
+  for (int track = 0; track < m_trackCount; ++track) {
+    for (int ch = 0; ch < 16; ++ch) {
+      std::vector<unsigned char> msg = {static_cast<unsigned char>(0xB0 | ch),
+                                        123, 0};
+      sendTrackMessage(track, msg);
     }
   }
 }
@@ -1898,6 +2253,8 @@ void MidiEngine::loadSettings() {
         slotMap.value("pluginId", slot.pluginId).toString().trimmed();
     slot.pluginPath =
         slotMap.value("pluginPath", slot.pluginPath).toString().trimmed();
+    slot.patchPath =
+        slotMap.value("patchPath", slot.patchPath).toString().trimmed();
     slot.presetName =
         slotMap.value("presetName", slot.presetName).toString().trimmed();
     slot.program =
@@ -1949,6 +2306,7 @@ void MidiEngine::saveSettings() const {
     slotMap["pluginFormat"] = slot.pluginFormat;
     slotMap["pluginId"] = slot.pluginId;
     slotMap["pluginPath"] = slot.pluginPath;
+    slotMap["patchPath"] = slot.patchPath;
     slotMap["presetName"] = slot.presetName;
     slotMap["program"] = slot.program;
     instrumentRack << slotMap;

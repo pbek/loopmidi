@@ -63,12 +63,14 @@ The rack abstraction does not render audio or open plugin UIs yet. It gives the 
 
 Selecting `Surge XT` in the rack assigns a plugin to the active track. Press `Start Host` to launch one LV2 host process per enabled instrument slot. LoopMidi uses `jalv`, names each JACK client `loopmidi-track-N`, and passes the scanned LV2 plugin URI to that host. With Surge-XT selected, this starts separate Surge-XT plugin instances for the enabled tracks.
 
-Each track has a `Program` value. For Surge-XT LV2 slots, LoopMidi writes a generated LV2 state bundle with that program number and starts `jalv` with `-l <state-dir>`. Changing the program takes effect the next time the plugin host is restarted.
+Each track has a `Surge patch` selector. LoopMidi scans Surge-XT factory and third-party `.fxp` patch files, extracts the selected patch chunk, writes it into a generated LV2 state bundle, and starts `jalv` with `-l <state-dir>`. This lets tracks use named Surge-XT sounds such as basses, keys, pads, leads, and percussion without opening the native Surge-XT UI. Changing the patch takes effect the next time the plugin host is restarted.
 
 LoopMidi launches `jalv` headless by default. This avoids Surge-XT's native LV2 UI crashing with X11 `BadWindow` errors on some Wayland/XWayland setups. The plugin still runs as an audio/MIDI host client; use a patchbay such as `qpwgraph` for routing. A dedicated in-app plugin UI remains a future in-process host task.
 
 This host layer is process-backed. It launches real LV2 plugin hosts. When `AUTO AUDIO` is enabled, LoopMidi waits briefly for the new JACK clients, scans their output ports with `jack_lsp`, and connects likely audio outputs to `system:playback_1` and `system:playback_2` using `jack_connect`.
 
 LoopMidi also connects the `LoopMidi Output` MIDI bridge port to each hosted plugin input when the port is visible through PipeWire-JACK. The host instances appear as JACK clients, so `qpwgraph` is still useful for inspecting or correcting routing.
+
+For hosted instruments, LoopMidi creates one MIDI output per track: `LoopMidi Track 1` through `LoopMidi Track 4`. Each hosted Surge-XT instance is connected to the matching track output, so live audition follows the active track and playback sends each sequencer track only to its own synth instance.
 
 The next deeper host step is an in-process LV2 or CLAP engine that renders audio directly inside LoopMidi and automatically routes each track's MIDI into its own plugin instance.

@@ -20,6 +20,7 @@ Window {
         id: engine
         onErrorOccurred: msg => errorBanner.show(msg)
         onNoteReceived: (note, vel, ch) => noteViz.flash(note, vel)
+        onAvailableSurgePatchesChanged: root.surgePatchModel = availableSurgePatches
     }
 
     // ── Fonts / palette ─────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ Window {
     readonly property color textMuted: "#64748b"
     readonly property color panelBg: "#13131f"
     readonly property color cardBg: "#1a1a2e"
+    property var surgePatchModel: []
 
     // ── Error banner ────────────────────────────────────────────────────────
     Rectangle {
@@ -878,7 +880,10 @@ Window {
                                         Layout.alignment: Qt.AlignBottom
                                         label: "Scan"
                                         iconText: "↺"
-                                        onClicked: engine.scanPlugins()
+                                        onClicked: {
+                                            engine.scanPlugins();
+                                            engine.scanSurgePatches();
+                                        }
                                     }
 
                                     Column {
@@ -919,33 +924,44 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 170
+                                        Layout.preferredWidth: 260
                                         Text {
-                                            text: "Preset label"
+                                            text: "Surge patch"
                                             font.pixelSize: 10
                                             color: root.textMuted
                                         }
-                                        TextField {
-                                            id: instrumentPresetField
+                                        ComboBox {
+                                            id: surgePatchCombo
                                             width: parent.width
-                                            text: engine.activeInstrumentPresetName
-                                            selectByMouse: true
-                                            font.pixelSize: 12
-                                            color: root.textPrimary
-                                            placeholderText: "Init"
-                                            placeholderTextColor: root.textMuted
-                                            onEditingFinished: engine.activeInstrumentPresetName = text
+                                            model: root.surgePatchModel
+                                            textRole: "label"
+                                            currentIndex: engine.activeSurgePatchIndex
+                                            displayText: currentIndex >= 0 ? currentText : engine.activeInstrumentPresetName
+                                            onActivated: engine.setActiveInstrumentFromSurgePatch(currentIndex)
+                                            Component.onCompleted: root.surgePatchModel = engine.availableSurgePatches
                                             Connections {
                                                 target: engine
                                                 function onActiveInstrumentChanged() {
-                                                    if (!instrumentPresetField.activeFocus)
-                                                        instrumentPresetField.text = engine.activeInstrumentPresetName;
+                                                    surgePatchCombo.currentIndex = engine.activeSurgePatchIndex;
+                                                }
+                                                function onAvailableSurgePatchesChanged() {
+                                                    root.surgePatchModel = engine.availableSurgePatches;
+                                                    surgePatchCombo.currentIndex = engine.activeSurgePatchIndex;
                                                 }
                                             }
                                             background: Rectangle {
                                                 color: root.panelBg
-                                                border.color: instrumentPresetField.activeFocus ? root.accentLight : root.stepBorder
+                                                border.color: surgePatchCombo.activeFocus ? root.accentLight : root.stepBorder
                                                 radius: 6
+                                            }
+                                            contentItem: Text {
+                                                leftPadding: 10
+                                                rightPadding: 10
+                                                text: parent.displayText.length > 0 ? parent.displayText : "No Surge patches found"
+                                                color: parent.displayText.length > 0 ? root.textPrimary : root.textMuted
+                                                font.pixelSize: 12
+                                                elide: Text.ElideRight
+                                                verticalAlignment: Text.AlignVCenter
                                             }
                                         }
                                     }

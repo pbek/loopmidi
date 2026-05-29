@@ -78,6 +78,10 @@
             "VST3_PATH"
             ":"
             "${pkgs.surge-xt}/lib/vst3"
+            "--prefix"
+            "SURGE_XT_DATA_PATH"
+            ":"
+            "${pkgs.surge-xt}/share/surge-xt"
           ];
 
           meta = with pkgs.lib; {
@@ -123,6 +127,7 @@
             export LV2_PATH="${pkgs.surge-xt}/lib/lv2''${LV2_PATH:+:$LV2_PATH}"
             export CLAP_PATH="${pkgs.surge-xt}/lib/clap''${CLAP_PATH:+:$CLAP_PATH}"
             export VST3_PATH="${pkgs.surge-xt}/lib/vst3''${VST3_PATH:+:$VST3_PATH}"
+            export SURGE_XT_DATA_PATH="${pkgs.surge-xt}/share/surge-xt''${SURGE_XT_DATA_PATH:+:$SURGE_XT_DATA_PATH}"
             echo "LoopMidi dev shell — version ${version}"
           '';
         };
