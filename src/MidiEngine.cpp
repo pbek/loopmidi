@@ -909,54 +909,64 @@ QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
   const QString manifestPath = stateDir + QStringLiteral("/manifest.ttl");
   const QString statePath = stateDir + QStringLiteral("/state.ttl");
 
-  // Write a minimal manifest so lilv can find the bundle; jalv uses state.ttl
-  // directly
+  // Write a minimal manifest; jalv -l loads state.ttl directly so this is
+  // only needed if the bundle directory is ever scanned by lilv_world.
   QFile manifest(manifestPath);
   if (!manifest.open(QIODevice::WriteOnly | QIODevice::Truncate |
                      QIODevice::Text))
     return QString();
   manifest.write(
-      QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
-                     "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
-                     "<state.ttl>\n"
-                     "    a state:State ;\n"
-                     "    lv2:appliesTo <%1> .\n")
+      QStringLiteral(
+          "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .\n"
+          "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
+          "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\n"
+          "<urn:loopmidi:surge-state-%2>\n"
+          "    a pset:Preset ;\n"
+          "    lv2:appliesTo <%1> ;\n"
+          "    rdfs:seeAlso <state.ttl> .\n")
           .arg(slot.pluginId)
+          .arg(trackIndex + 1)
           .toUtf8());
 
   QFile state(statePath);
   if (!state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
     return QString();
-  // Use <> (relative URI resolving to file itself) as subject with a
-  // state:State type, matching the format jalv itself uses when saving state.
-  // This ensures lilv correctly parses the state when jalv calls
-  // lilv_state_new_from_file with a NULL subject.
+  // Declare the subject as both pset:Preset and state:State so that:
+  // - lilv_state_new_from_file (called by jalv with NULL subject) can find the
+  //   subject via the state:State type marker it searches for, AND
+  // - the node is also a valid pset:Preset so lilv doesn't crash on this
+  // version
+  //   of jalv/lilv where a bare state:State subject causes a segfault.
   if (!patchChunk.isEmpty()) {
     state.write(
         QStringLiteral("@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n"
                        "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                       "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
                        "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
-                       "<>\n"
-                       "    a state:State ;\n"
+                       "<urn:loopmidi:surge-state-%3>\n"
+                       "    a pset:Preset, state:State ;\n"
                        "    lv2:appliesTo <%1> ;\n"
                        "    state:state [\n"
                        "        <%1:StateString> \"%2\"^^atom:String\n"
                        "    ] .\n")
             .arg(slot.pluginId, QString::fromLatin1(patchChunk.toBase64()))
+            .arg(trackIndex + 1)
             .toUtf8());
   } else {
     state.write(
         QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                       "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
                        "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
                        "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
-                       "<>\n"
-                       "    a state:State ;\n"
+                       "<urn:loopmidi:surge-state-%3>\n"
+                       "    a pset:Preset, state:State ;\n"
                        "    lv2:appliesTo <%1> ;\n"
                        "    state:state [\n"
                        "        <%1:Program> \"%2\"^^xsd:int\n"
                        "    ] .\n")
             .arg(slot.pluginId)
             .arg(slot.program)
+            .arg(trackIndex + 1)
             .toUtf8());
   }
 
