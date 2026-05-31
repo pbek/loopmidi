@@ -29,6 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Surge patch selection no longer rebuilds the full patch model on track/channel changes, and patch scanning is limited to a practical factory subset to avoid UI stalls.
 - Hosted instruments now use one virtual MIDI output per track, so active-track audition and sequencer playback target the matching Surge-XT instance instead of sending every note to every hosted synth.
 - Shared `LoopMidi Output` passthrough is muted while the internal plugin host is running, and stale shared MIDI links are disconnected from hosted synth inputs before per-track links are made.
+- Surge `.fxp` patch loading now reads the correct VST2 chunk header, so selected factory patches are written into LV2 state instead of falling back to ineffective numeric program values.
 
 ---
 

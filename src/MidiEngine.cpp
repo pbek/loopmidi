@@ -845,8 +845,8 @@ QByteArray MidiEngine::readSurgePatchChunk(const QString &path) const {
   if (!file.open(QIODevice::ReadOnly))
     return QByteArray();
 
-  const QByteArray header = file.read(52);
-  if (header.size() != 52)
+  const QByteArray header = file.read(60);
+  if (header.size() != 60)
     return QByteArray();
 
   auto readBe32 = [](const QByteArray &data, int offset) {
@@ -862,7 +862,7 @@ QByteArray MidiEngine::readSurgePatchChunk(const QString &path) const {
       readBe32(header, 16) != 0x636a7333)
     return QByteArray();
 
-  const quint32 chunkSize = readBe32(header, 48);
+  const quint32 chunkSize = readBe32(header, 56);
   if (chunkSize == 0 || chunkSize > 16 * 1024 * 1024)
     return QByteArray();
 
