@@ -9,9 +9,9 @@ import LoopMidi 1.0
 Window {
     id: root
     visible: true
-    width: 1400
+    width: 1600
     height: 720
-    minimumWidth: 1180
+    minimumWidth: 1300
     minimumHeight: 620
     title: "LoopMidi"
     color: "#0d0d12"
@@ -982,6 +982,80 @@ Window {
                                             editable: true
                                             width: parent.width
                                             onValueModified: engine.activeInstrumentProgram = value
+                                            contentItem: TextInput {
+                                                text: instrumentProgramSpinBox.textFromValue(instrumentProgramSpinBox.value, instrumentProgramSpinBox.locale)
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                                color: root.textPrimary
+                                                selectionColor: root.accent
+                                                selectedTextColor: "white"
+                                                horizontalAlignment: Qt.AlignHCenter
+                                                verticalAlignment: Qt.AlignVCenter
+                                                readOnly: !instrumentProgramSpinBox.editable
+                                                validator: instrumentProgramSpinBox.validator
+                                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                                leftPadding: 26
+                                                rightPadding: 26
+                                            }
+                                            up.indicator: Rectangle {
+                                                x: instrumentProgramSpinBox.width - width
+                                                width: 28
+                                                height: instrumentProgramSpinBox.height
+                                                radius: 7
+                                                color: progUpMouseArea.pressed ? Qt.rgba(0.49, 0.23, 0.93, 0.35) : "transparent"
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "+"
+                                                    font.pixelSize: 14
+                                                    font.bold: true
+                                                    color: parent.enabled ? root.accentLight : root.textMuted
+                                                }
+
+                                                MouseArea {
+                                                    id: progUpMouseArea
+                                                    anchors.fill: parent
+                                                    enabled: instrumentProgramSpinBox.value < instrumentProgramSpinBox.to
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        instrumentProgramSpinBox.value = Math.min(instrumentProgramSpinBox.to, instrumentProgramSpinBox.value + 1);
+                                                        engine.activeInstrumentProgram = instrumentProgramSpinBox.value;
+                                                    }
+                                                }
+                                            }
+                                            down.indicator: Rectangle {
+                                                width: 28
+                                                height: instrumentProgramSpinBox.height
+                                                radius: 7
+                                                color: progDownMouseArea.pressed ? Qt.rgba(0.49, 0.23, 0.93, 0.35) : "transparent"
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "-"
+                                                    font.pixelSize: 16
+                                                    font.bold: true
+                                                    color: parent.enabled ? root.accentLight : root.textMuted
+                                                }
+
+                                                MouseArea {
+                                                    id: progDownMouseArea
+                                                    anchors.fill: parent
+                                                    enabled: instrumentProgramSpinBox.value > instrumentProgramSpinBox.from
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        instrumentProgramSpinBox.value = Math.max(instrumentProgramSpinBox.from, instrumentProgramSpinBox.value - 1);
+                                                        engine.activeInstrumentProgram = instrumentProgramSpinBox.value;
+                                                    }
+                                                }
+                                            }
+                                            background: Rectangle {
+                                                color: root.cardBg
+                                                border.color: instrumentProgramSpinBox.activeFocus ? root.accentLight : root.stepBorder
+                                                border.width: instrumentProgramSpinBox.activeFocus ? 2 : 1
+                                                radius: 7
+                                            }
                                             Connections {
                                                 target: engine
                                                 function onActiveInstrumentChanged() {

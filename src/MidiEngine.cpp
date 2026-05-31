@@ -676,6 +676,11 @@ void MidiEngine::setActiveInstrumentFromSurgePatch(int index) {
           : QStringLiteral("%1 / %2").arg(patch.category, patch.name);
   emitInstrumentChanges();
   saveSettings();
+
+  // Restart the plugin host so jalv picks up the new LV2 state for the changed
+  // patch
+  if (m_pluginHostRunning)
+    startPluginHost();
 }
 
 bool MidiEngine::resolveInstrumentSlotPlugin(int trackIndex) {
@@ -901,64 +906,58 @@ QString MidiEngine::writeSurgeProgramState(int trackIndex) const {
   if (!dir.mkpath(stateDir))
     return QString();
 
-  const QString stateUri =
-      QStringLiteral("urn:loopmidi:surge-program-track-%1").arg(trackIndex + 1);
   const QString manifestPath = stateDir + QStringLiteral("/manifest.ttl");
   const QString statePath = stateDir + QStringLiteral("/state.ttl");
 
+  // Write a minimal manifest so lilv can find the bundle; jalv uses state.ttl
+  // directly
   QFile manifest(manifestPath);
   if (!manifest.open(QIODevice::WriteOnly | QIODevice::Truncate |
                      QIODevice::Text))
     return QString();
   manifest.write(
-      QStringLiteral(
-          "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
-          "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
-          "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\n"
-          "<%1>\n"
-          "    a pset:Preset ;\n"
-          "    rdfs:seeAlso <state.ttl> ;\n"
-          "    lv2:appliesTo <%2> .\n")
-          .arg(stateUri, slot.pluginId)
+      QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                     "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
+                     "<state.ttl>\n"
+                     "    a state:State ;\n"
+                     "    lv2:appliesTo <%1> .\n")
+          .arg(slot.pluginId)
           .toUtf8());
 
   QFile state(statePath);
   if (!state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
     return QString();
+  // Use <> (relative URI resolving to file itself) as subject with a
+  // state:State type, matching the format jalv itself uses when saving state.
+  // This ensures lilv correctly parses the state when jalv calls
+  // lilv_state_new_from_file with a NULL subject.
   if (!patchChunk.isEmpty()) {
-    state.write(QStringLiteral(
-                    "@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n"
-                    "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
-                    "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
-                    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
-                    "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
-                    "<%1>\n"
-                    "    a pset:Preset ;\n"
-                    "    lv2:appliesTo <%2> ;\n"
-                    "    rdfs:label \"%3\" ;\n"
-                    "    state:state [\n"
-                    "        <%2:StateString> \"%4\"^^atom:String\n"
-                    "    ] .\n")
-                    .arg(stateUri, slot.pluginId, slot.presetName,
-                         QString::fromLatin1(patchChunk.toBase64()))
-                    .toUtf8());
+    state.write(
+        QStringLiteral("@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n"
+                       "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                       "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n\n"
+                       "<>\n"
+                       "    a state:State ;\n"
+                       "    lv2:appliesTo <%1> ;\n"
+                       "    state:state [\n"
+                       "        <%1:StateString> \"%2\"^^atom:String\n"
+                       "    ] .\n")
+            .arg(slot.pluginId, QString::fromLatin1(patchChunk.toBase64()))
+            .toUtf8());
   } else {
-    state.write(QStringLiteral(
-                    "@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
-                    "@prefix pset: <http://lv2plug.in/ns/ext/presets#> .\n"
-                    "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
-                    "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
-                    "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
-                    "<%1>\n"
-                    "    a pset:Preset ;\n"
-                    "    lv2:appliesTo <%2> ;\n"
-                    "    rdfs:label \"Program %3\" ;\n"
-                    "    state:state [\n"
-                    "        <%2:Program> \"%3\"^^xsd:int\n"
-                    "    ] .\n")
-                    .arg(stateUri, slot.pluginId)
-                    .arg(slot.program)
-                    .toUtf8());
+    state.write(
+        QStringLiteral("@prefix lv2: <http://lv2plug.in/ns/lv2core#> .\n"
+                       "@prefix state: <http://lv2plug.in/ns/ext/state#> .\n"
+                       "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
+                       "<>\n"
+                       "    a state:State ;\n"
+                       "    lv2:appliesTo <%1> ;\n"
+                       "    state:state [\n"
+                       "        <%1:Program> \"%2\"^^xsd:int\n"
+                       "    ] .\n")
+            .arg(slot.pluginId)
+            .arg(slot.program)
+            .toUtf8());
   }
 
   return stateDir;
