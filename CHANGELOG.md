@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Surge patch scanning is deferred until after startup and selected patch lookup is handled in C++ to keep track switching responsive with large patch libraries.
 - Instrument slot controls are now hidden by default behind a track-row toggle, and the expanded panel uses a capped, centered layout to reduce horizontal sprawl.
 - Beats and contiguous beat ranges can now be moved within the active track by dragging step cells; click a start beat, Shift-click an end beat, then drag the selected range as a group.
+- Beats and contiguous beat ranges can now be cleared with the Delete key after selecting a beat or range in the step grid.
 
 ### Changed
 

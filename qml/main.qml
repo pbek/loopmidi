@@ -59,6 +59,17 @@ Window {
         stepSelectionAnchor = anchor;
     }
 
+    function deleteSelectedOrCursorSteps() {
+        if (selectedStepStart >= 0) {
+            for (let i = selectedStepStart; i <= selectedStepEnd; ++i)
+                engine.clearStep(i);
+            return;
+        }
+
+        if (engine.cursorStep >= 0)
+            engine.clearStep(engine.cursorStep);
+    }
+
     function moveStepRange(fromIndex, count, toIndex) {
         if (toIndex >= fromIndex && toIndex < fromIndex + count)
             return;
@@ -1275,7 +1286,7 @@ Window {
                         // Step grid
                         Text {
                             Layout.fillWidth: true
-                            text: "Drag beats to reorder. Click a start beat, Shift-click an end beat, then drag the range as a group."
+                            text: "Click a beat to select it for recording or Delete. Shift-click an end beat to select a range, then drag or Delete it."
                             font.pixelSize: 11
                             color: root.textMuted
                             opacity: 0.75
@@ -1616,6 +1627,11 @@ Window {
     Shortcut {
         sequence: "C"
         onActivated: engine.clearSequence()
+    }
+    Shortcut {
+        sequence: "Delete"
+        enabled: !projectNameField.activeFocus && !midiChannelSpinBox.activeFocus && !instrumentProgramSpinBox.activeFocus && !instrumentNameField.activeFocus
+        onActivated: root.deleteSelectedOrCursorSteps()
     }
     Shortcut {
         sequence: "Escape"
