@@ -117,6 +117,8 @@ class MidiEngine : public QObject {
                  projectFilePathChanged)
   Q_PROPERTY(
       QString projectFileName READ projectFileName NOTIFY projectNameChanged)
+  Q_PROPERTY(QString projectDialogDirectory READ projectDialogDirectory NOTIFY
+                 projectDialogDirectoryChanged)
   Q_PROPERTY(
       bool midiLearnActive READ midiLearnActive NOTIFY midiLearnActiveChanged)
   Q_PROPERTY(QString midiLearnTarget READ midiLearnTarget NOTIFY
@@ -180,6 +182,7 @@ public:
   QString projectName() const { return m_projectName; }
   QString projectFilePath() const { return m_projectFilePath; }
   QString projectFileName() const;
+  QString projectDialogDirectory() const;
   bool midiLearnActive() const { return m_midiLearnActive; }
   QString midiLearnTarget() const { return m_midiLearnTargetStr; }
   bool passthroughEnabled() const { return m_passthroughEnabled; }
@@ -255,6 +258,7 @@ signals:
   void bpmChanged();
   void projectNameChanged();
   void projectFilePathChanged();
+  void projectDialogDirectoryChanged();
   void midiLearnActiveChanged();
   void midiLearnTargetChanged();
   void passthroughEnabledChanged();
@@ -309,7 +313,9 @@ private:
   void disconnectPluginHostMidi(const QString &clientName);
   QString normalizedProjectPath(const QString &filePath) const;
   static QString defaultProjectName();
+  static QString defaultProjectDialogDirectory();
   static QString projectNameToFileName(const QString &name);
+  void setProjectDialogDirectoryFromFile(const QString &filePath);
   static void midiCallback(double deltatime,
                            std::vector<unsigned char> *message, void *userData);
 
@@ -341,6 +347,7 @@ private:
   double m_bpm = 120.0;
   QString m_projectName;
   QString m_projectFilePath;
+  QString m_projectDialogDirectory;
 
   QTimer *m_stepTimer = nullptr;
   QTimer *m_hotplugTimer = nullptr;

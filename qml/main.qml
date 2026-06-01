@@ -2,7 +2,6 @@ import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Dialogs
-import QtCore
 import QtQuick.Layouts 1.15
 import LoopMidi 1.0
 
@@ -158,9 +157,8 @@ Window {
     }
 
     function openSaveProjectDialog() {
-        var folder = StandardPaths.writableLocation(StandardPaths.DocumentsLocation);
-        if (folder.length === 0)
-            folder = StandardPaths.writableLocation(StandardPaths.HomeLocation);
+        var folder = engine.projectDialogDirectory;
+        saveProjectDialog.currentFolder = folder;
         saveProjectDialog.currentFile = folder + "/" + engine.projectFileName;
         saveProjectDialog.open();
     }
@@ -181,6 +179,7 @@ Window {
         title: "Load LoopMidi Project"
         fileMode: FileDialog.OpenFile
         nameFilters: ["LoopMidi projects (*.loopmidi *.json)", "All files (*)"]
+        currentFolder: engine.projectDialogDirectory
         onAccepted: engine.loadProject(selectedFile.toString())
     }
 

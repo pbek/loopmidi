@@ -316,6 +316,13 @@ QString MidiEngine::projectFileName() const {
   return projectNameToFileName(m_projectName);
 }
 
+QString MidiEngine::projectDialogDirectory() const {
+  const QString directory = m_projectDialogDirectory.isEmpty()
+                                ? defaultProjectDialogDirectory()
+                                : m_projectDialogDirectory;
+  return QUrl::fromLocalFile(directory).toString();
+}
+
 void MidiEngine::setPassthroughEnabled(bool enabled) {
   if (m_passthroughEnabled == enabled)
     return;
@@ -1487,6 +1494,24 @@ QString MidiEngine::normalizedProjectPath(const QString &filePath) const {
   return path;
 }
 
+QString MidiEngine::defaultProjectDialogDirectory() {
+  QString directory =
+      QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+  if (directory.isEmpty())
+    directory = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+  if (directory.isEmpty())
+    directory = QDir::homePath();
+  return directory;
+}
+
+void MidiEngine::setProjectDialogDirectoryFromFile(const QString &filePath) {
+  const QString directory = QFileInfo(filePath).absolutePath();
+  if (directory.isEmpty() || m_projectDialogDirectory == directory)
+    return;
+  m_projectDialogDirectory = directory;
+  emit projectDialogDirectoryChanged();
+}
+
 QString MidiEngine::defaultProjectName() {
   return QStringLiteral("LoopMidi %1")
       .arg(QDate::currentDate().toString(Qt::ISODate));
@@ -1585,6 +1610,8 @@ bool MidiEngine::saveProject(const QString &filePath) {
     m_projectFilePath = path;
     emit projectFilePathChanged();
   }
+  setProjectDialogDirectoryFromFile(path);
+  saveSettings();
   return true;
 }
 
@@ -1751,6 +1778,7 @@ bool MidiEngine::loadProject(const QString &filePath) {
     m_projectFilePath = path;
     emit projectFilePathChanged();
   }
+  setProjectDialogDirectoryFromFile(path);
   if (nameChanged)
     emit projectNameChanged();
   emit bpmChanged();
@@ -2260,6 +2288,10 @@ void MidiEngine::loadSettings() {
   m_bpm = s.value("bpm", 120.0).toDouble();
   m_savedInputName = s.value("inputPortName").toString();
   m_savedOutputName = s.value("outputPortName").toString();
+  m_projectDialogDirectory = s.value("projectDialogDirectory").toString();
+  if (m_projectDialogDirectory.isEmpty() ||
+      !QDir(m_projectDialogDirectory).exists())
+    m_projectDialogDirectory = defaultProjectDialogDirectory();
   m_recordButton = s.value("recordButton", -1).toInt();
   m_playButton = s.value("playButton", -1).toInt();
   m_stopButton = s.value("stopButton", -1).toInt();
@@ -2329,6 +2361,7 @@ void MidiEngine::saveSettings() const {
   s.setValue("tapTempoButton", m_tapTempoButton);
   s.setValue("recordAllBeats", m_recordAllBeats);
   s.setValue("pluginHostAutoConnectAudio", m_pluginHostAutoConnectAudio);
+  s.setValue("projectDialogDirectory", m_projectDialogDirectory);
   QVariantList trackMidiChannels;
   for (int channel : m_trackMidiChannels)
     trackMidiChannels << channel + 1;

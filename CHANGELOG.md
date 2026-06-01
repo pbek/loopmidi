@@ -34,6 +34,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Selecting a Surge patch now automatically restarts the plugin host so the newly chosen `.fxp` state is actually loaded by `jalv` instead of continuing with the previous patch.
 - Program selector SpinBox now uses the same dark theme as the MIDI channel selector, replacing the default system light style with a dark card background, purple accent borders, and matching +/− indicators.
 - Switch controls now provide explicit QML backgrounds to avoid KDE Breeze `ButtonBackground.qml` runtime type errors.
+- Project load and save dialogs now reopen in the last directory that successfully loaded or stored a project.
 
 - Process-backed plugin hosting now runs through PipeWire-JACK via `pw-jack` when available, so `jalv`, `jack_lsp`, and `jack_connect` use the active PipeWire audio graph instead of expecting a separate classic JACK server.
 - Plugin host diagnostics now surface `jalv` output and exit reasons in the terminal and app error banner instead of silently switching from running to stopped.
