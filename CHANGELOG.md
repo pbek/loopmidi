@@ -20,6 +20,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Per-track Surge-XT program selection writes generated LV2 state and starts each hosted instance with its configured program number.
 - Surge-XT factory and third-party `.fxp` patches are scanned into a named per-track patch selector; selected patches are converted into generated LV2 state and loaded by each headless `jalv` instance.
 - Surge patch scanning is deferred until after startup and selected patch lookup is handled in C++ to keep track switching responsive with large patch libraries.
+- Instrument slot controls are now hidden by default behind a track-row toggle, and the expanded panel uses a capped, centered layout to reduce horizontal sprawl.
+
+### Changed
+
+- Expanded instrument slot controls are wider and baseline-aligned so plugin, patch, format, program, slot name, and enable controls fit cleanly in the compact panel.
 
 ### Fixed
 

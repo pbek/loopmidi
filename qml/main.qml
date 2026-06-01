@@ -36,6 +36,7 @@ Window {
     readonly property color panelBg: "#13131f"
     readonly property color cardBg: "#1a1a2e"
     property var surgePatchModel: []
+    property bool showInstrumentSlot: false
 
     // ── Error banner ────────────────────────────────────────────────────────
     Rectangle {
@@ -775,14 +776,25 @@ Window {
                                 }
                             }
 
+                            LoopButton {
+                                Layout.preferredWidth: 100
+                                label: root.showInstrumentSlot ? "Hide Slot" : "Show Slot"
+                                iconText: root.showInstrumentSlot ? "-" : "+"
+                                onClicked: root.showInstrumentSlot = !root.showInstrumentSlot
+                            }
+
                             Item {
                                 Layout.fillWidth: true
                             }
                         }
 
                         Rectangle {
+                            visible: root.showInstrumentSlot
                             Layout.fillWidth: true
-                            height: 116
+                            Layout.preferredWidth: 1180
+                            Layout.maximumWidth: 1180
+                            Layout.alignment: Qt.AlignHCenter
+                            height: 122
                             radius: 10
                             color: root.cardBg
                             border.color: root.stepBorder
@@ -796,11 +808,12 @@ Window {
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 10
+                                    spacing: 8
 
                                     Column {
                                         spacing: 3
-                                        Layout.preferredWidth: 140
+                                        Layout.preferredWidth: 128
+                                        Layout.alignment: Qt.AlignVCenter
                                         Text {
                                             text: "INSTRUMENT SLOT"
                                             font.pixelSize: 10
@@ -817,7 +830,8 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 240
+                                        Layout.preferredWidth: 236
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Plugin"
                                             font.pixelSize: 10
@@ -876,7 +890,7 @@ Window {
                                     }
 
                                     LoopButton {
-                                        Layout.preferredWidth: 70
+                                        Layout.preferredWidth: 66
                                         Layout.alignment: Qt.AlignBottom
                                         label: "Scan"
                                         iconText: "↺"
@@ -888,7 +902,8 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 100
+                                        Layout.preferredWidth: 86
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Format"
                                             font.pixelSize: 10
@@ -924,7 +939,8 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 260
+                                        Layout.preferredWidth: 250
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Surge patch"
                                             font.pixelSize: 10
@@ -968,7 +984,8 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 96
+                                        Layout.preferredWidth: 94
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Program"
                                             font.pixelSize: 10
@@ -1067,7 +1084,8 @@ Window {
 
                                     Column {
                                         spacing: 5
-                                        Layout.preferredWidth: 150
+                                        Layout.preferredWidth: 156
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Slot name"
                                             font.pixelSize: 10
@@ -1104,6 +1122,7 @@ Window {
 
                                     Column {
                                         spacing: 6
+                                        Layout.alignment: Qt.AlignBottom
                                         Text {
                                             text: "Enabled"
                                             font.pixelSize: 10
