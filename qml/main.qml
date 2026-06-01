@@ -21,6 +21,7 @@ Window {
         onErrorOccurred: msg => errorBanner.show(msg)
         onNoteReceived: (note, vel, ch) => noteViz.flash(note, vel)
         onAvailableSurgePatchesChanged: root.surgePatchModel = availableSurgePatches
+        onActiveTrackChanged: root.clearStepSelection()
     }
 
     // ── Fonts / palette ─────────────────────────────────────────────────────
@@ -37,6 +38,59 @@ Window {
     readonly property color cardBg: "#1a1a2e"
     property var surgePatchModel: []
     property bool showInstrumentSlot: false
+    property int selectedStepStart: -1
+    property int selectedStepEnd: -1
+    property int stepSelectionAnchor: -1
+
+    function clearStepSelection() {
+        selectedStepStart = -1;
+        selectedStepEnd = -1;
+        stepSelectionAnchor = -1;
+    }
+
+    function stepSelectionContains(index) {
+        return selectedStepStart >= 0 && index >= selectedStepStart && index <= selectedStepEnd;
+    }
+
+    function selectStepRange(index) {
+        const anchor = stepSelectionAnchor >= 0 ? stepSelectionAnchor : index;
+        selectedStepStart = Math.min(anchor, index);
+        selectedStepEnd = Math.max(anchor, index);
+        stepSelectionAnchor = anchor;
+    }
+
+    function moveStepRange(fromIndex, count, toIndex) {
+        if (toIndex >= fromIndex && toIndex < fromIndex + count)
+            return;
+
+        engine.moveSteps(fromIndex, count, toIndex);
+        selectedStepStart = Math.min(toIndex, engine.sequence.length - count);
+        selectedStepEnd = selectedStepStart + count - 1;
+        stepSelectionAnchor = selectedStepStart;
+    }
+
+    function stepIndexAtWindowPosition(windowX, windowY, sourceIndex) {
+        for (let i = 0; i < stepRepeater.count; ++i) {
+            if (i === sourceIndex)
+                continue;
+
+            const item = stepRepeater.itemAt(i);
+            if (!item)
+                continue;
+
+            const local = item.mapFromItem(null, windowX, windowY);
+            if (local.x >= 0 && local.x <= item.width && local.y >= 0 && local.y <= item.height)
+                return i;
+        }
+
+        return -1;
+    }
+
+    function moveStepRangeAtWindowPosition(fromIndex, count, windowX, windowY) {
+        const targetIndex = stepIndexAtWindowPosition(windowX, windowY, fromIndex);
+        if (targetIndex >= 0)
+            moveStepRange(fromIndex, count, targetIndex);
+    }
 
     // ── Error banner ────────────────────────────────────────────────────────
     Rectangle {
@@ -657,6 +711,10 @@ Window {
                             Switch {
                                 checked: engine.recordAllBeats
                                 onCheckedChanged: engine.recordAllBeats = checked
+                                background: Item {
+                                    implicitWidth: 44
+                                    implicitHeight: 22
+                                }
                                 indicator: Rectangle {
                                     implicitWidth: 44
                                     implicitHeight: 22
@@ -1131,6 +1189,10 @@ Window {
                                         Switch {
                                             checked: engine.activeInstrumentEnabled
                                             onCheckedChanged: engine.activeInstrumentEnabled = checked
+                                            background: Item {
+                                                implicitWidth: 44
+                                                implicitHeight: 22
+                                            }
                                             indicator: Rectangle {
                                                 implicitWidth: 44
                                                 implicitHeight: 22
@@ -1172,6 +1234,10 @@ Window {
                                     Switch {
                                         checked: engine.pluginHostAutoConnectAudio
                                         onCheckedChanged: engine.pluginHostAutoConnectAudio = checked
+                                        background: Item {
+                                            implicitWidth: 44
+                                            implicitHeight: 22
+                                        }
                                         indicator: Rectangle {
                                             implicitWidth: 44
                                             implicitHeight: 22
@@ -1207,6 +1273,14 @@ Window {
                         }
 
                         // Step grid
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Drag beats to reorder. Click a start beat, Shift-click an end beat, then drag the range as a group."
+                            font.pixelSize: 11
+                            color: root.textMuted
+                            opacity: 0.75
+                        }
+
                         GridLayout {
                             id: stepGrid
                             Layout.fillWidth: true
@@ -1215,6 +1289,7 @@ Window {
                             columnSpacing: 10
 
                             Repeater {
+                                id: stepRepeater
                                 model: 16
                                 delegate: StepCell {
                                     Layout.fillWidth: true
@@ -1223,6 +1298,9 @@ Window {
                                     isCurrentStep: engine.currentStep === index
                                     isRecordingStep: engine.recording && engine.recordingStep === index
                                     isCursorStep: engine.cursorStep === index
+                                    isSelected: root.stepSelectionContains(index)
+                                    dragRangeStart: root.stepSelectionContains(index) ? root.selectedStepStart : index
+                                    dragRangeCount: root.stepSelectionContains(index) ? root.selectedStepEnd - root.selectedStepStart + 1 : 1
                                     accentColor: root.accent
                                     accentLightColor: root.accentLight
                                     recColor: root.recColor
@@ -1232,7 +1310,16 @@ Window {
                                     textMutedColor: root.textMuted
                                     onDeleteStep: idx => engine.clearStep(idx)
                                     onRerecordStep: idx => engine.recordStep(idx)
-                                    onCursorClicked: idx => {
+                                    onMoveSteps: (fromIndex, count, toIndex) => root.moveStepRange(fromIndex, count, toIndex)
+                                    onDragReleased: (fromIndex, count, windowX, windowY) => root.moveStepRangeAtWindowPosition(fromIndex, count, windowX, windowY)
+                                    onCursorClicked: (idx, modifiers) => {
+                                        if (modifiers & Qt.ShiftModifier) {
+                                            root.selectStepRange(idx);
+                                            return;
+                                        }
+
+                                        root.clearStepSelection();
+                                        root.stepSelectionAnchor = idx;
                                         // Toggle off if clicking the same cell again
                                         if (engine.cursorStep === idx)
                                             engine.setCursorStep(-1);
@@ -1485,6 +1572,10 @@ Window {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 checked: engine.passthroughEnabled
                                 onCheckedChanged: engine.passthroughEnabled = checked
+                                background: Item {
+                                    implicitWidth: 44
+                                    implicitHeight: 22
+                                }
                                 indicator: Rectangle {
                                     implicitWidth: 44
                                     implicitHeight: 22

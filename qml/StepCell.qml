@@ -8,6 +8,9 @@ Rectangle {
     property bool isCurrentStep: false
     property bool isRecordingStep: false
     property bool isCursorStep: false
+    property bool isSelected: false
+    property int dragRangeStart: stepIndex
+    property int dragRangeCount: 1
     property color accentColor: "#7c3aed"
     property color accentLightColor: "#a78bfa"
     property color recColor: "#ef4444"
@@ -19,7 +22,9 @@ Rectangle {
 
     signal deleteStep(int index)
     signal rerecordStep(int index)
-    signal cursorClicked(int index)
+    signal cursorClicked(int index, int modifiers)
+    signal moveSteps(int fromIndex, int count, int toIndex)
+    signal dragReleased(int fromIndex, int count, real sceneX, real sceneY)
 
     height: 80
     radius: 10
@@ -53,11 +58,15 @@ Rectangle {
             return accentColor;
         if (isCursorStep)
             return cursorColor;
+        if (isSelected)
+            return accentLightColor;
         if (hasNote)
             return Qt.rgba(0.49, 0.23, 0.93, 0.5);
         return stepBorderColor;
     }
-    border.width: (isCurrentStep || isCursorStep) ? 2 : 1
+    border.width: (isCurrentStep || isCursorStep || isSelected) ? 2 : 1
+    opacity: dragArea.drag.active ? 0.72 : 1
+    z: dragArea.drag.active ? 10 : 0
 
     // Velocity bar (height proportional to first/lowest note velocity)
     Rectangle {
@@ -183,14 +192,55 @@ Rectangle {
     }
 
     MouseArea {
+        id: dragArea
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
+        drag.target: root
+        drag.threshold: 8
+        property real pressX: 0
+        property real pressY: 0
+        property real pressSceneX: 0
+        property real pressSceneY: 0
+        property bool movedEnough: false
+        onPressed: mouse => {
+            pressX = root.x;
+            pressY = root.y;
+            const scenePos = root.mapToItem(null, mouse.x, mouse.y);
+            pressSceneX = scenePos.x;
+            pressSceneY = scenePos.y;
+            movedEnough = false;
+        }
+        onPositionChanged: mouse => {
+            if (mouse.buttons & Qt.LeftButton) {
+                const scenePos = root.mapToItem(null, mouse.x, mouse.y);
+                const dx = scenePos.x - pressSceneX;
+                const dy = scenePos.y - pressSceneY;
+                if (Math.sqrt(dx * dx + dy * dy) >= drag.threshold)
+                    movedEnough = true;
+            }
+        }
+        onReleased: mouse => {
+            const scenePos = root.mapToItem(null, mouse.x, mouse.y);
+            const dx = scenePos.x - pressSceneX;
+            const dy = scenePos.y - pressSceneY;
+            if (movedEnough || Math.sqrt(dx * dx + dy * dy) >= drag.threshold) {
+                root.dragReleased(root.dragRangeStart, root.dragRangeCount, scenePos.x, scenePos.y);
+            }
+            root.x = pressX;
+            root.y = pressY;
+            movedEnough = false;
+        }
+        onCanceled: {
+            root.x = pressX;
+            root.y = pressY;
+            movedEnough = false;
+        }
         onClicked: mouse => {
             if (mouse.button === Qt.RightButton)
                 contextMenu.popup();
             else if (mouse.button === Qt.LeftButton)
-                root.cursorClicked(root.stepIndex);
+                root.cursorClicked(root.stepIndex, mouse.modifiers);
         }
     }
 

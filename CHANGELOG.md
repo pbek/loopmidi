@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Surge-XT factory and third-party `.fxp` patches are scanned into a named per-track patch selector; selected patches are converted into generated LV2 state and loaded by each headless `jalv` instance.
 - Surge patch scanning is deferred until after startup and selected patch lookup is handled in C++ to keep track switching responsive with large patch libraries.
 - Instrument slot controls are now hidden by default behind a track-row toggle, and the expanded panel uses a capped, centered layout to reduce horizontal sprawl.
+- Beats and contiguous beat ranges can now be moved within the active track by dragging step cells; click a start beat, Shift-click an end beat, then drag the selected range as a group.
 
 ### Changed
 
@@ -31,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LV2 state bundles written for `jalv -l` now use `<>` as the subject with `a state:State` (matching jalv's own save format) instead of a named URN with `a pset:Preset`, so lilv correctly applies the Surge patch on startup and patch changes actually take effect.
 - Selecting a Surge patch now automatically restarts the plugin host so the newly chosen `.fxp` state is actually loaded by `jalv` instead of continuing with the previous patch.
 - Program selector SpinBox now uses the same dark theme as the MIDI channel selector, replacing the default system light style with a dark card background, purple accent borders, and matching +/− indicators.
+- Switch controls now provide explicit QML backgrounds to avoid KDE Breeze `ButtonBackground.qml` runtime type errors.
 
 - Process-backed plugin hosting now runs through PipeWire-JACK via `pw-jack` when available, so `jalv`, `jack_lsp`, and `jack_connect` use the active PipeWire audio graph instead of expecting a separate classic JACK server.
 - Plugin host diagnostics now surface `jalv` output and exit reasons in the terminal and app error banner instead of silently switching from running to stopped.

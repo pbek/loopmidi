@@ -219,6 +219,7 @@ public slots:
   void stopPlayback();
   void clearSequence();
   void clearStep(int index);
+  void moveSteps(int fromIndex, int count, int toIndex);
   void recordStep(int index);
   void setCursorStep(int index);
   void tapTempo();

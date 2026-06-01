@@ -1778,6 +1778,32 @@ void MidiEngine::clearStep(int index) {
   emit sequenceChanged();
 }
 
+void MidiEngine::moveSteps(int fromIndex, int count, int toIndex) {
+  if (m_activeTrack < 0 || m_activeTrack >= m_tracks.size())
+    return;
+  if (count <= 0 || fromIndex < 0 || fromIndex >= m_maxSteps)
+    return;
+
+  count = qMin(count, m_maxSteps - fromIndex);
+  toIndex = qBound(0, toIndex, m_maxSteps - count);
+
+  if (toIndex >= fromIndex && toIndex < fromIndex + count)
+    return;
+
+  QVector<ChordStep> &sequence = m_tracks[m_activeTrack];
+  QVector<ChordStep> moved;
+  moved.reserve(count);
+  for (int i = 0; i < count; ++i)
+    moved.append(sequence[fromIndex + i]);
+
+  for (int i = 0; i < count; ++i)
+    sequence.removeAt(fromIndex);
+  for (int i = 0; i < moved.size(); ++i)
+    sequence.insert(toIndex + i, std::move(moved[i]));
+
+  emit sequenceChanged();
+}
+
 // Arm a single step for re-recording: the next chord played will overwrite
 // that step, then recording stops automatically (playback is not interrupted).
 void MidiEngine::recordStep(int index) {
